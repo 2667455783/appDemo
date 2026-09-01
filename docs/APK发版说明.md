@@ -76,6 +76,16 @@ APK：`android\app\build\outputs\apk\debug\app-debug.apk`
 
 ---
 
+## 桌面图标与应用名
+
+| 项目 | 位置 |
+|------|------|
+| 源图（1024 或 500 方图） | `resources/app-icon-source.jpg` |
+| 生成各尺寸图标 | `npm run generate:icon` |
+| 桌面显示名称 | `capacitor.config.ts` 的 `appName` + `android/.../strings.xml` |
+
+换图标：替换 `resources/app-icon-source.jpg` 后执行 `npm run generate:icon`，再重新打包。
+
 ## 版本号会改哪些文件
 
 脚本升版本时会同步改：

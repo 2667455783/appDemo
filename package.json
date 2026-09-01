@@ -1,7 +1,7 @@
 {
   "name": "appdemo",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,8 @@
     "cap:open:android": "npx cap open android",
     "cap:open:ios": "npx cap open ios",
     "release:apk": "node scripts/release-apk.mjs",
-    "release:apk:local": "node scripts/release-apk.mjs --skip-upload"
+    "release:apk:local": "node scripts/release-apk.mjs --skip-upload",
+    "generate:icon": "node scripts/generate-app-icon.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",
