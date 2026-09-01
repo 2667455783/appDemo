@@ -3,7 +3,9 @@ package com.englishdemo.app.share;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.net.Uri;
+import android.os.Build;
 
 import androidx.core.content.FileProvider;
 
@@ -14,44 +16,37 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.OutputStream;
 
 /**
- * 下载 APK 并分享到微信 / QQ 等（发送安装包文件，而非仅链接）。
+ * 分享本机已安装的 APK（无需联网再下载）。
  */
 @CapacitorPlugin(name = "ShareApp")
 public class ShareAppPlugin extends Plugin {
 
-    @PluginMethod
-    public void shareApkUrl(PluginCall call) {
-        String url = call.getString("url");
-        String pkg = call.getString("package");
-        String fileName = call.getString("fileName", "english-study.apk");
+    private static final String DEFAULT_APK_NAME = "英语备考.apk";
 
-        if (url == null || url.isEmpty()) {
-            call.reject("url is required");
-            return;
-        }
+    /** 直接分享当前已安装的本 App 安装包 */
+    @PluginMethod
+    public void shareInstalledApk(PluginCall call) {
+        String pkg = call.getString("package");
+        String fileName = call.getString("fileName");
+
         if (pkg == null || pkg.isEmpty()) {
             call.reject("package is required");
             return;
         }
 
-        notifyProgress("downloading", 0);
-
-        new Thread(() -> {
-            try {
-                File apk = downloadApk(url, fileName);
-                notifyProgress("downloaded", 100);
-                bridge.getActivity().runOnUiThread(() -> shareApkFile(apk, pkg, call));
-            } catch (Exception e) {
-                String msg = e.getMessage() != null ? e.getMessage() : "下载失败";
-                call.reject("下载安装包失败：" + msg);
-            }
-        }).start();
+        try {
+            File apk = prepareInstalledApkForShare(fileName);
+            shareApkFile(apk, pkg, call);
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "无法读取本机安装包";
+            call.reject(msg);
+        }
     }
 
     /** 纯文本分享（备用） */
@@ -89,50 +84,48 @@ public class ShareAppPlugin extends Plugin {
         }
     }
 
-    private File downloadApk(String urlStr, String fileName) throws Exception {
+    /**
+     * 从 ApplicationInfo.sourceDir 读取本机安装包，复制到 cache 供 FileProvider 分享。
+     * 纯本地磁盘操作，不走网络。
+     */
+    private File prepareInstalledApkForShare(String preferredName) throws Exception {
         Context ctx = getContext();
-        File out = new File(ctx.getCacheDir(), sanitizeFileName(fileName));
-
-        // 24 小时内已缓存同文件则复用，避免每次分享都重新下 100MB
-        long ageMs = System.currentTimeMillis() - out.lastModified();
-        if (out.exists() && out.length() > 1024 * 1024 && ageMs < 24L * 60 * 60 * 1000) {
-            return out;
+        ApplicationInfo info = ctx.getApplicationInfo();
+        File src = new File(info.sourceDir);
+        if (!src.exists() || !src.canRead()) {
+            throw new Exception("无法读取当前安装包");
         }
 
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setConnectTimeout(30_000);
-        conn.setReadTimeout(180_000);
-        conn.setInstanceFollowRedirects(true);
-        conn.connect();
+        String name = preferredName != null && !preferredName.isEmpty()
+            ? sanitizeFileName(preferredName)
+            : defaultShareFileName(ctx);
 
-        int code = conn.getResponseCode();
-        if (code < 200 || code >= 300) {
-            throw new Exception("HTTP " + code);
+        File dest = new File(ctx.getCacheDir(), name);
+        // 已复制过且大小一致则直接复用
+        if (dest.exists() && dest.length() == src.length()) {
+            return dest;
         }
 
-        int total = conn.getContentLength();
-        try (InputStream in = conn.getInputStream();
-             FileOutputStream fos = new FileOutputStream(out)) {
+        copyFile(src, dest);
+        if (!dest.exists() || dest.length() < 1024) {
+            throw new Exception("准备安装包失败");
+        }
+        return dest;
+    }
+
+    private String defaultShareFileName(Context ctx) {
+        return DEFAULT_APK_NAME;
+    }
+
+    private void copyFile(File src, File dest) throws Exception {
+        try (InputStream in = new FileInputStream(src);
+             OutputStream out = new FileOutputStream(dest)) {
             byte[] buf = new byte[8192];
             int n;
-            long done = 0;
             while ((n = in.read(buf)) != -1) {
-                fos.write(buf, 0, n);
-                done += n;
-                if (total > 0) {
-                    int pct = (int) Math.min(99, (done * 100) / total);
-                    notifyProgress("downloading", pct);
-                }
+                out.write(buf, 0, n);
             }
-        } finally {
-            conn.disconnect();
         }
-
-        if (!out.exists() || out.length() < 1024) {
-            throw new Exception("安装包文件无效");
-        }
-        return out;
     }
 
     private void shareApkFile(File file, String pkg, PluginCall call) {
@@ -164,14 +157,7 @@ public class ShareAppPlugin extends Plugin {
     }
 
     private String sanitizeFileName(String name) {
-        if (name == null || name.isEmpty()) return "english-study.apk";
-        return name.replaceAll("[^a-zA-Z0-9._-]", "_");
-    }
-
-    private void notifyProgress(String stage, int percent) {
-        JSObject data = new JSObject();
-        data.put("stage", stage);
-        data.put("percent", percent);
-        notifyListeners("shareProgress", data);
+        if (name == null || name.isEmpty()) return DEFAULT_APK_NAME;
+        return name.replaceAll("[/\\\\:*?\"<>|]", "_");
     }
 }

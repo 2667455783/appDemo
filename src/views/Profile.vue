@@ -60,17 +60,13 @@ function onDownload() {
 async function onShare(target: 'wechat' | 'qq' | 'copy') {
   if (sharing.value) return
   sharing.value = true
-  shareMsg.value = target === 'copy' ? '' : '正在准备安装包（约 100MB），请稍候…'
-  const onProgress = (pct: number) => {
-    if (pct > 0 && pct < 100) shareMsg.value = `正在下载安装包 ${pct}%…`
-    else if (pct >= 100) shareMsg.value = '下载完成，正在打开分享…'
-  }
+  shareMsg.value = target === 'copy' ? '' : '正在准备本机安装包…'
   try {
     const r =
       target === 'wechat'
-        ? await shareToWeChat(onProgress)
+        ? await shareToWeChat()
         : target === 'qq'
-          ? await shareToQQ(onProgress)
+          ? await shareToQQ()
           : await copyShareLink()
     shareMsg.value = r.message
   } finally {
@@ -158,7 +154,7 @@ async function onShare(target: 'wechat' | 'qq' | 'copy') {
 
     <p class="section-h">推荐给好友</p>
     <div class="card share-card">
-      <p class="page-sub">分享 APK 安装包给好友（首次约 100MB，需等待下载）。</p>
+      <p class="page-sub">直接分享本机已安装的 APK，无需联网再下载。</p>
       <div class="share-row">
         <button class="share-btn wechat" type="button" :disabled="sharing" @click="onShare('wechat')">
           <span class="share-ico" aria-hidden="true">微</span>

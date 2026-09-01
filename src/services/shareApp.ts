@@ -3,46 +3,23 @@ import { UPDATE_PUBLIC_BASE } from '@/config/update'
 import { checkForUpdate, getManifestUrl } from '@/services/appUpdate'
 
 export const APP_SHARE_NAME = '英语备考'
+export const SHARE_APK_FILE_NAME = '英语备考.apk'
 
 export const DEFAULT_APK_SHARE_URL = `${UPDATE_PUBLIC_BASE}/latest.apk`
 
 interface ShareAppPlugin {
-  shareApkUrl(options: { url: string; package: string; fileName?: string }): Promise<{
+  shareInstalledApk(options: { package: string; fileName?: string }): Promise<{
     ok: boolean
     fileName?: string
     size?: number
   }>
   shareToPackage(options: { text: string; title?: string; package: string }): Promise<{ ok: boolean }>
-  addListener(
-    event: 'shareProgress',
-    listener: (e: { stage: string; percent: number }) => void,
-  ): Promise<{ remove: () => void }>
 }
 
 const ShareApp = registerPlugin<ShareAppPlugin>('ShareApp')
 
 const WECHAT_PKG = 'com.tencent.mm'
 const QQ_PKG = 'com.tencent.mobileqq'
-
-export type ShareProgressHandler = (percent: number, stage: string) => void
-
-/** 优先用线上清单里的 apkUrl，否则 latest.apk */
-export async function resolveApkShareUrl(): Promise<string> {
-  try {
-    const r = await checkForUpdate()
-    if (r.status !== 'error' && r.remote?.apkUrl) {
-      return r.remote.apkUrl
-    }
-  } catch {
-    /* ignore */
-  }
-  return DEFAULT_APK_SHARE_URL
-}
-
-function apkFileNameFromUrl(url: string): string {
-  const name = url.split('/').pop()?.split('?')[0]
-  return name && name.endsWith('.apk') ? name : 'english-study.apk'
-}
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -70,60 +47,57 @@ async function copyText(text: string): Promise<boolean> {
 
 export type ShareResult = { ok: boolean; message: string }
 
-async function shareApkToApp(
-  pkg: string,
-  appLabel: string,
-  onProgress?: ShareProgressHandler,
-): Promise<ShareResult> {
-  const apkUrl = await resolveApkShareUrl()
-  const fileName = apkFileNameFromUrl(apkUrl)
-
+/** 分享本机已安装的 APK，不联网下载 */
+async function shareInstalledToApp(pkg: string, appLabel: string): Promise<ShareResult> {
   if (!Capacitor.isNativePlatform()) {
-    const copied = await copyText(apkUrl)
+    const url = DEFAULT_APK_SHARE_URL
+    const copied = await copyText(url)
     return {
       ok: copied,
       message: copied
-        ? `浏览器环境无法直接发安装包，已复制下载链接，请用${appLabel}发送给好友`
+        ? `浏览器环境无法发安装包，已复制下载链接，请用${appLabel}发送`
         : '请在 App 内使用分享功能',
     }
   }
 
-  let removeListener: (() => void) | undefined
   try {
-    const handle = await ShareApp.addListener('shareProgress', (e) => {
-      onProgress?.(e.percent, e.stage)
-    })
-    removeListener = () => handle.remove()
-
-    onProgress?.(0, 'downloading')
-    await ShareApp.shareApkUrl({ url: apkUrl, package: pkg, fileName })
-    return { ok: true, message: `已打开${appLabel}，请选择好友发送安装包` }
+    await ShareApp.shareInstalledApk({ package: pkg, fileName: SHARE_APK_FILE_NAME })
+    return { ok: true, message: `已打开${appLabel}，请选择好友发送当前版本安装包` }
   } catch (e: unknown) {
     const err = e instanceof Error ? e.message : String(e)
-    const copied = await copyText(apkUrl)
+    // 失败时降级为下载链接
+    let url = DEFAULT_APK_SHARE_URL
+    try {
+      const r = await checkForUpdate()
+      if (r.status !== 'error' && r.remote?.apkUrl) url = r.remote.apkUrl
+    } catch {
+      /* ignore */
+    }
+    const copied = await copyText(url)
     if (copied) {
-      return {
-        ok: true,
-        message: `${err || '分享安装包失败'}，已改为复制下载链接，请手动粘贴发送`,
-      }
+      return { ok: true, message: `${err || '分享失败'}，已改为复制下载链接` }
     }
     return { ok: false, message: err || '分享失败' }
-  } finally {
-    removeListener?.()
   }
 }
 
-export function shareToWeChat(onProgress?: ShareProgressHandler): Promise<ShareResult> {
-  return shareApkToApp(WECHAT_PKG, '微信', onProgress)
+export function shareToWeChat(): Promise<ShareResult> {
+  return shareInstalledToApp(WECHAT_PKG, '微信')
 }
 
-export function shareToQQ(onProgress?: ShareProgressHandler): Promise<ShareResult> {
-  return shareApkToApp(QQ_PKG, 'QQ', onProgress)
+export function shareToQQ(): Promise<ShareResult> {
+  return shareInstalledToApp(QQ_PKG, 'QQ')
 }
 
 export async function copyShareLink(): Promise<ShareResult> {
-  const apkUrl = await resolveApkShareUrl()
-  const copied = await copyText(apkUrl)
+  let url = DEFAULT_APK_SHARE_URL
+  try {
+    const r = await checkForUpdate()
+    if (r.status !== 'error' && r.remote?.apkUrl) url = r.remote.apkUrl
+  } catch {
+    /* ignore */
+  }
+  const copied = await copyText(url)
   return {
     ok: copied,
     message: copied ? '下载链接已复制（非安装包文件）' : '复制失败',
