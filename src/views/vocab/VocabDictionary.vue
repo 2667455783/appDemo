@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
+import SpeakWordButton from '@/components/SpeakWordButton.vue'
 import {
   filterVocabByLevel,
   getAllVocab,
@@ -120,7 +121,10 @@ function pickLetter(L: string) {
             </p>
             <p v-if="w.pos" class="pos">{{ w.pos }}</p>
           </div>
-          <span class="tag">{{ w.level === 'both' ? '四六级' : w.level === 'cet4' ? '四级' : '六级' }}</span>
+          <div class="aside">
+            <SpeakWordButton :text="w.word" />
+            <span class="tag">{{ w.level === 'both' ? '四六级' : w.level === 'cet4' ? '四级' : '六级' }}</span>
+          </div>
         </div>
         <p class="meaning">{{ w.meaning || '（暂无释义）' }}</p>
         <p v-if="usageOf(w)" class="usage">
@@ -165,6 +169,13 @@ function pickLetter(L: string) {
 .word {
   margin-top: 10px;
   text-align: left;
+}
+.aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
 }
 .top {
   align-items: flex-start;

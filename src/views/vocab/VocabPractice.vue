@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
+import SpeakWordButton from '@/components/SpeakWordButton.vue'
 import { fetchVocabDue, vocabCount } from '@/services/bank'
 import { useStudyStore } from '@/stores/study'
 import { useUserStore } from '@/stores/user'
@@ -79,19 +80,22 @@ function grade(ok: boolean) {
 
     <template v-else>
       <p class="muted">{{ idx + 1 }} / {{ queue.length }} · {{ current.freq === 'must' ? '必考' : current.freq === 'high' ? '高频' : '扩展' }}</p>
-      <button class="flash" type="button" @click="flip">
-        <p class="word">{{ current.word }}</p>
-        <p class="phon">{{ current.phonetic }} {{ current.pos }}</p>
-        <div v-if="flipped" class="mean">
-          <p>{{ current.meaning }}</p>
-          <p v-if="current.example" class="ex">{{ current.example }}</p>
-          <p v-if="current.exampleCn" class="page-sub">{{ current.exampleCn }}</p>
-          <p v-if="current.collocation" class="page-sub">搭配 {{ current.collocation }}</p>
-          <p v-if="current.root" class="page-sub">词根 {{ current.root }}</p>
-          <p v-if="!current.example" class="page-sub">（ECDICT 词条暂无例句，可先记释义）</p>
-        </div>
-        <p v-else class="page-sub">点卡片看释义与例句</p>
-      </button>
+      <div class="flash-wrap">
+        <SpeakWordButton class="flash-speak" :text="current.word" />
+        <button class="flash" type="button" @click="flip">
+          <p class="word">{{ current.word }}</p>
+          <p class="phon">{{ current.phonetic }} {{ current.pos }}</p>
+          <div v-if="flipped" class="mean">
+            <p>{{ current.meaning }}</p>
+            <p v-if="current.example" class="ex">{{ current.example }}</p>
+            <p v-if="current.exampleCn" class="page-sub">{{ current.exampleCn }}</p>
+            <p v-if="current.collocation" class="page-sub">搭配 {{ current.collocation }}</p>
+            <p v-if="current.root" class="page-sub">词根 {{ current.root }}</p>
+            <p v-if="!current.example" class="page-sub">（ECDICT 词条暂无例句，可先记释义）</p>
+          </div>
+          <p v-else class="page-sub">点卡片看释义与例句</p>
+        </button>
+      </div>
       <div v-if="flipped" class="grid2" style="margin-top: 12px">
         <button class="btn danger" type="button" @click="grade(false)">没记住</button>
         <button class="btn primary" type="button" @click="grade(true)">记住了</button>
@@ -102,10 +106,19 @@ function grade(ok: boolean) {
 </template>
 
 <style scoped>
+.flash-wrap {
+  position: relative;
+  margin-top: 10px;
+}
+.flash-speak {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+}
 .flash {
   width: 100%;
   min-height: 240px;
-  margin-top: 10px;
   border: 1px solid var(--line);
   background: var(--paper-2);
   border-radius: 20px;
