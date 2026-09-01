@@ -7,6 +7,7 @@ import { useUserStore } from '@/stores/user'
 import { useStudyStore } from '@/stores/study'
 import { useAppUpdateStore } from '@/stores/appUpdate'
 import { getManifestUrl, openApkDownload, setManifestUrl } from '@/services/appUpdate'
+import { copyShareLink, shareToQQ, shareToWeChat } from '@/services/shareApp'
 
 const router = useRouter()
 const user = useUserStore()
@@ -19,6 +20,8 @@ const mastered = computed(() => {
 
 const manifestInput = ref(getManifestUrl())
 const showUrlEdit = ref(false)
+const shareMsg = ref('')
+const sharing = ref(false)
 
 onMounted(async () => {
   await update.loadLocal()
@@ -52,6 +55,27 @@ function onDownload() {
   }
   openApkDownload(update.remote.apkUrl)
   update.checkMsg = '已打开下载链接，下载完成后按提示安装（需允许「未知来源」）'
+}
+
+async function onShare(target: 'wechat' | 'qq' | 'copy') {
+  if (sharing.value) return
+  sharing.value = true
+  shareMsg.value = target === 'copy' ? '' : '正在准备安装包（约 100MB），请稍候…'
+  const onProgress = (pct: number) => {
+    if (pct > 0 && pct < 100) shareMsg.value = `正在下载安装包 ${pct}%…`
+    else if (pct >= 100) shareMsg.value = '下载完成，正在打开分享…'
+  }
+  try {
+    const r =
+      target === 'wechat'
+        ? await shareToWeChat(onProgress)
+        : target === 'qq'
+          ? await shareToQQ(onProgress)
+          : await copyShareLink()
+    shareMsg.value = r.message
+  } finally {
+    sharing.value = false
+  }
 }
 </script>
 
@@ -132,6 +156,25 @@ function onDownload() {
       </div>
     </div>
 
+    <p class="section-h">推荐给好友</p>
+    <div class="card share-card">
+      <p class="page-sub">分享 APK 安装包给好友（首次约 100MB，需等待下载）。</p>
+      <div class="share-row">
+        <button class="share-btn wechat" type="button" :disabled="sharing" @click="onShare('wechat')">
+          <span class="share-ico" aria-hidden="true">微</span>
+          微信好友
+        </button>
+        <button class="share-btn qq" type="button" :disabled="sharing" @click="onShare('qq')">
+          <span class="share-ico" aria-hidden="true">Q</span>
+          QQ 好友
+        </button>
+      </div>
+      <button class="btn sm ghost block" style="margin-top: 10px" type="button" :disabled="sharing" @click="onShare('copy')">
+        仅复制下载链接（备用）
+      </button>
+      <p v-if="shareMsg" class="page-sub" style="margin-top: 8px">{{ shareMsg }}</p>
+    </div>
+
     <button class="btn ghost block" style="margin-top: 16px" type="button" @click="router.push('/exam-review')">正考成绩校准</button>
     <button class="btn danger block" style="margin-top: 10px" type="button" @click="reset">重置演示数据</button>
   </div>
@@ -191,5 +234,48 @@ function onDownload() {
   background: var(--coral);
   border: 2px solid var(--paper-2);
   box-shadow: 0 0 0 1px rgba(184, 92, 74, 0.35);
+}
+.share-card {
+  text-align: left;
+}
+.share-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+}
+.share-btn:disabled {
+  opacity: 0.6;
+}
+.share-btn.wechat {
+  background: #07c160;
+  border-color: #07c160;
+}
+.share-btn.qq {
+  background: #12b7f5;
+  border-color: #12b7f5;
+}
+.share-ico {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.22);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
 }
 </style>

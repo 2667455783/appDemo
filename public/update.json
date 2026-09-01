@@ -1,8 +1,8 @@
 {
-  "version": "1.0.8",
-  "versionCode": 9,
-  "apkUrl": "http://134.175.54.151/englishStudy/app-1.0.8.apk",
-  "notes": "重新发版",
+  "version": "1.0.10",
+  "versionCode": 11,
+  "apkUrl": "http://134.175.54.151/englishStudy/英语备考.apk",
+  "notes": "重新发版,新增分享好友功能",
   "publishedAt": "2026-09-01",
   "force": false
 }

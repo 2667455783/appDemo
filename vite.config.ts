@@ -8,7 +8,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 }
 
 /** 与 android/app/build.gradle versionCode 保持一致，发版时同步 +1 */
-const APP_VERSION_CODE = 9
+const APP_VERSION_CODE = 11
 
 export default defineConfig({
   plugins: [vue()],
