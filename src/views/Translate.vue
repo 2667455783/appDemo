@@ -2,6 +2,7 @@
 import { ref, onUnmounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { translateAuto, translateText, TRANSLATE_MAX_CHARS, type Lang } from '@/services/translate'
+import { canSpeak, speakText, stopSpeak } from '@/utils/audio'
 
 const input = ref('')
 const output = ref('')
@@ -11,6 +12,7 @@ const to = ref<Lang>('zh')
 const auto = ref(true)
 const loading = ref(false)
 const err = ref('')
+const speakingOut = ref(false)
 
 type HistoryItem = { id: string; input: string; output: string; from: Lang; to: Lang; at: string }
 const history = ref<HistoryItem[]>(JSON.parse(localStorage.getItem('translateHistory') || '[]'))
@@ -78,6 +80,25 @@ async function copyOut() {
     await navigator.clipboard.writeText(output.value)
   } catch {
     // ignore
+  }
+}
+
+async function playOut() {
+  if (!output.value.trim()) return
+  if (!canSpeak()) {
+    err.value = '当前环境不支持朗读'
+    return
+  }
+  if (speakingOut.value) {
+    stopSpeak()
+    speakingOut.value = false
+    return
+  }
+  speakingOut.value = true
+  try {
+    await speakText(output.value, to.value)
+  } finally {
+    speakingOut.value = false
   }
 }
 
@@ -173,6 +194,7 @@ async function toggleMic() {
 // 离开页面时静默清理语音状态，避免 listening 残留导致下次点击"压根没效果"
 onUnmounted(() => {
   forceStop()
+  stopSpeak()
 })
 </script>
 
@@ -260,7 +282,23 @@ onUnmounted(() => {
       <div v-if="output" class="out">
         <div class="row space">
           <p class="out-label">译为{{ langLabel[to] }}文</p>
-          <button class="chip ghost" type="button" @click="copyOut">复制</button>
+          <div class="out-actions">
+            <button class="chip ghost" type="button" @click="copyOut">复制</button>
+            <button
+              class="chip ghost play-chip"
+              :class="{ on: speakingOut }"
+              type="button"
+              :disabled="!canSpeak()"
+              :title="canSpeak() ? '朗读译文' : '当前环境不支持朗读'"
+              @click="playOut"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                <path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+              </svg>
+              {{ speakingOut ? '停止' : '播放' }}
+            </button>
+          </div>
         </div>
         <p class="out-text">{{ output }}</p>
         <div v-if="alts.length" class="alts">
@@ -319,6 +357,21 @@ onUnmounted(() => {
 }
 .out-label {
   font-weight: 700;
+}
+.out-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.play-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.play-chip.on {
+  border-color: var(--forest);
+  color: var(--forest);
+  background: var(--moss, #e7efe6);
 }
 .out-text {
   margin: 6px 0 0;
