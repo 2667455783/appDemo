@@ -1,0 +1,88 @@
+import type { GrammarCard } from '@/types'
+
+export const GRAMMAR_CARDS: GrammarCard[] = [
+  {
+    id: 'g1',
+    title: '定语从句',
+    point: '先行词是物用 that/which；介词后只能 which，不能 that。',
+    example: 'The lab to which extra funds were allocated is now open.',
+    question: {
+      id: 'gq1',
+      stem: 'The report _____ she referred was published last week.',
+      options: ['A. that', 'B. to which', 'C. which', 'D. to that'],
+      answer: 1,
+      analysis: 'refer to 的 to 提到关系词前，只能 to which。',
+      cause: 'template',
+    },
+  },
+  {
+    id: 'g2',
+    title: '非谓语',
+    point: '主动用 doing，被动用 done；目的常用 to do。',
+    example: 'Allocated extra time, the team finished the paper.',
+    question: {
+      id: 'gq2',
+      stem: '_____ the noise in the dorm, she chose the library.',
+      options: ['A. Finding', 'B. Found', 'C. To find', 'D. Find'],
+      answer: 0,
+      analysis: '逻辑主语 she 与 find 是主动，用 Finding。',
+      cause: 'template',
+    },
+  },
+  {
+    id: 'g3',
+    title: '虚拟语气',
+    point: '与现在相反：did / were；建议类：should do，should 可省。',
+    example: 'It is essential that every intern (should) be given real tasks.',
+    question: {
+      id: 'gq3',
+      stem: 'If the café _____ open until midnight, more students would stay.',
+      options: ['A. is', 'B. were', 'C. was being', 'D. has been'],
+      answer: 1,
+      analysis: '与现在事实相反，be 用 were。',
+      cause: 'template',
+    },
+  },
+  {
+    id: 'g4',
+    title: '主谓一致',
+    point: 'together with / as well as 不改变主语单复数；either...or 靠近原则。',
+    example: 'The professor, together with her interns, is revising the paper.',
+    question: {
+      id: 'gq4',
+      stem: 'Either the mentors or the intern _____ responsible for the draft.',
+      options: ['A. are', 'B. is', 'C. be', 'D. were'],
+      answer: 1,
+      analysis: '靠近原则，the intern 单数用 is。',
+      cause: 'careless',
+    },
+  },
+  {
+    id: 'g5',
+    title: '倒装',
+    point: '否定词放句首部分倒装：Never have I... / Not until... did we...',
+    example: 'Not until the deadline approached did they start the draft.',
+    question: {
+      id: 'gq5',
+      stem: 'Never _____ such a clear explanation before.',
+      options: ['A. I have heard', 'B. have I heard', 'C. I had heard', 'D. did I heard'],
+      answer: 1,
+      analysis: 'Never 置首部分倒装，且 before 用现在完成时。',
+      cause: 'template',
+    },
+  },
+  {
+    id: 'g6',
+    title: '名词性从句',
+    point: 'that 引导同位语从句与定语从句区别：同位语 that 不充当成分，不可省。',
+    example: 'The fact that she agreed surprised everyone.',
+    question: {
+      id: 'gq6',
+      stem: 'The news _____ the team won the match spread quickly.',
+      options: ['A. which', 'B. that', 'C. what', 'D. when'],
+      answer: 1,
+      analysis: '同位语从句，news 的内容，that 不作成分不可省。',
+      cause: 'template',
+    },
+  },
+]

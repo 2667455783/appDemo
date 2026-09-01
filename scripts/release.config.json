@@ -1,0 +1,9 @@
+{
+  "host": "134.175.54.151",
+  "user": "root",
+  "port": 22,
+  "identityFile": "C:/Users/PC/.ssh/vue_admin_deploy",
+  "remoteDir": "/var/www/vue-admin/englishStudy",
+  "publicBase": "http://134.175.54.151/englishStudy",
+  "apkNamePattern": "app-{version}.apk"
+}

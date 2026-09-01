@@ -1,0 +1,24 @@
+# Cursor index ignore (keep in sync with heavy dirs in .gitignore)
+node_modules/
+dist/
+dist-ssr/
+.vite/
+.cache/
+release/
+.android-sdk/
+.vosk-models/
+scripts/.vosk-models/
+android/app/build/
+android/.gradle/
+android/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/vosk-model-*/
+ios/App/build/
+ios/App/Pods/
+ios/DerivedData/
+*.apk
+*.aab
+*.zip
+*.log
+.env
+.env.*

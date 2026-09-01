@@ -1,0 +1,227 @@
+import type { ListeningItem } from '@/types'
+
+export const LISTENING_ITEMS: ListeningItem[] = [
+  {
+    id: 'l-news-1',
+    title: '校园新闻：图书馆夜间开放',
+    kind: 'news',
+    level: 'cet4',
+    preReadSec: 35,
+    audioText:
+      'The university library will extend its opening hours during the final exam period. Starting next Monday, the building will remain open until midnight from Sunday to Thursday. Library staff said the change is meant to provide a quiet place for students who find dormitories too noisy. A student survey last month showed that approximately sixty percent of undergraduates preferred to review on campus at night. However, the café on the ground floor will still close at nine, so students are advised to bring their own snacks. Security guards will be on duty throughout the extra hours.',
+    sentences: [
+      'The university library will extend its opening hours during the final exam period.',
+      'Starting next Monday, the building will remain open until midnight from Sunday to Thursday.',
+      'Library staff said the change is meant to provide a quiet place for students who find dormitories too noisy.',
+      'A student survey last month showed that approximately sixty percent of undergraduates preferred to review on campus at night.',
+      'However, the café on the ground floor will still close at nine, so students are advised to bring their own snacks.',
+    ],
+    blanks: [
+      { sentenceIndex: 1, answer: 'midnight' },
+      { sentenceIndex: 3, answer: 'sixty' },
+    ],
+    questions: [
+      {
+        id: 'lq1',
+        stem: '图书馆延时开放的主要原因是什么？',
+        options: [
+          'A. 咖啡馆需要更多顾客',
+          'B. 为学生提供更安静的复习场所',
+          'C. 保安希望增加值班时间',
+          'D. 学校要举行夜间讲座',
+        ],
+        answer: 1,
+        analysis: '视听一致：staff said the change is meant to provide a quiet place。宿舍太吵是动机，不是干扰项里的咖啡馆或讲座。',
+        cause: 'listen',
+      },
+      {
+        id: 'lq2',
+        stem: '关于开放时间，哪一项正确？',
+        options: [
+          'A. 每天都开到午夜',
+          'B. 仅周五周六延时',
+          'C. 周日到周四开到午夜',
+          'D. 整栋楼包括咖啡馆都开到午夜',
+        ],
+        answer: 2,
+        analysis: '细节题：Sunday to Thursday until midnight。转折 however 后咖啡馆仍九点关门，D 错误。',
+        cause: 'listen',
+      },
+      {
+        id: 'lq3',
+        stem: '上个月调查显示约多少本科生更愿在校内夜间复习？',
+        options: ['A. 16%', 'B. 40%', 'C. 50%', 'D. 60%'],
+        answer: 3,
+        analysis: '数字题，预读选项时应圈出百分比。原文 approximately sixty percent。',
+        cause: 'careless',
+      },
+    ],
+  },
+  {
+    id: 'l-conv-1',
+    title: '长对话：实习与课程冲突',
+    kind: 'conversation',
+    level: 'cet6',
+    preReadSec: 40,
+    audioText:
+      'W: I got an internship offer from a media company, but it starts two weeks before the semester ends. M: That is a tough call. Does the company allow you to work part time until exams are over? W: They prefer someone who can start full time immediately. I am reluctant to skip the last seminars of Professor Lin’s course. M: Have you talked to her? She might let you submit the final paper early. W: I sent her an email last night. If she agrees, I will take the internship. Otherwise I will wait until summer. M: Sounds like a feasible plan. Just do not let the opportunity undermine your degree requirements.',
+    sentences: [
+      'I got an internship offer from a media company, but it starts two weeks before the semester ends.',
+      'Does the company allow you to work part time until exams are over?',
+      'They prefer someone who can start full time immediately.',
+      'I am reluctant to skip the last seminars of Professor Lin’s course.',
+      'If she agrees, I will take the internship. Otherwise I will wait until summer.',
+      'Just do not let the opportunity undermine your degree requirements.',
+    ],
+    blanks: [
+      { sentenceIndex: 3, answer: 'reluctant' },
+      { sentenceIndex: 5, answer: 'undermine' },
+    ],
+    questions: [
+      {
+        id: 'cq1',
+        stem: '女生面临的主要矛盾是什么？',
+        options: [
+          'A. 实习薪水太低',
+          'B. 实习开始时间与学期冲突',
+          'C. 教授拒绝写推荐信',
+          'D. 公司要求远程办公',
+        ],
+        answer: 1,
+        analysis: '主旨：实习在学期结束前两周开始，与课程冲突。',
+        cause: 'locate',
+      },
+      {
+        id: 'cq2',
+        stem: '女生最终的决定取决于什么？',
+        options: [
+          'A. 公司是否提高薪水',
+          'B. 室友是否一起实习',
+          'C. 林教授是否允许提前交论文',
+          'D. 能否改到暑假再面试',
+        ],
+        answer: 2,
+        analysis: 'If she agrees, I will take the internship. Otherwise wait until summer。',
+        cause: 'logic',
+      },
+    ],
+  },
+  {
+    id: 'l-news-2',
+    title: '校园新闻：食堂新规',
+    kind: 'news',
+    level: 'cet4',
+    preReadSec: 30,
+    audioText:
+      'Starting next month, the main dining hall will stop providing single-use plastic containers. Students are encouraged to bring their own reusable boxes or pay a small deposit for a returnable one. The change follows a student-led campaign that collected over two thousand signatures. The cafeteria manager admitted the transition might be inconvenient at first, but emphasized that the long-term environmental benefits outweigh the short-term trouble. A trial run in one dining area last semester reduced plastic waste by nearly forty percent.',
+    sentences: [
+      'Starting next month, the main dining hall will stop providing single-use plastic containers.',
+      'Students are encouraged to bring their own reusable boxes or pay a small deposit for a returnable one.',
+      'The change follows a student-led campaign that collected over two thousand signatures.',
+      'The cafeteria manager admitted the transition might be inconvenient at first, but emphasized that the long-term environmental benefits outweigh the short-term trouble.',
+      'A trial run in one dining area last semester reduced plastic waste by nearly forty percent.',
+    ],
+    blanks: [
+      { sentenceIndex: 2, answer: 'two thousand' },
+      { sentenceIndex: 4, answer: 'forty' },
+    ],
+    questions: [
+      {
+        id: 'ln2-q1',
+        stem: '食堂下月的新规主要内容是？',
+        options: [
+          'A. 涨价',
+          'B. 停供一次性塑料餐盒',
+          'C. 缩短营业时间',
+          'D. 只接受现金',
+        ],
+        answer: 1,
+        analysis: '首句主旨：stop providing single-use plastic containers。',
+        cause: 'listen',
+      },
+      {
+        id: 'ln2-q2',
+        stem: '这项改变的起因是？',
+        options: [
+          'A. 学校单方面决定',
+          'B. 食堂经理提议',
+          'C. 学生发起的联署活动',
+          'D. 政府强制要求',
+        ],
+        answer: 2,
+        analysis: 'a student-led campaign that collected over two thousand signatures。',
+        cause: 'locate',
+      },
+      {
+        id: 'ln2-q3',
+        stem: '上学期试点的效果是？',
+        options: ['A. 减少约 14%', 'B. 减少约 40%', 'C. 增加约 40%', 'D. 无变化'],
+        answer: 1,
+        analysis: 'reduced plastic waste by nearly forty percent。数字题预读圈百分比。',
+        cause: 'careless',
+      },
+    ],
+  },
+  {
+    id: 'l-lecture-1',
+    title: '讲座：注意力经济',
+    kind: 'lecture',
+    level: 'cet6',
+    preReadSec: 45,
+    audioText:
+      'Today we look at the so-called attention economy. Platforms compete not for your money but for the minutes of your day. Every notification is designed to pull you back, and every infinite scroll removes the natural stopping point that books and films still have. The consequence is that deep reading, the kind of reading that produces original thought, has become far less prevalent. Some researchers argue this is not a technology problem but a design problem. If apps restored the signals that tell us when to stop, attention could be cultivated rather than extracted. The speaker concludes that the most fundamental skill in this economy may be the ability to choose what to ignore.',
+    sentences: [
+      'Today we look at the so-called attention economy.',
+      'Platforms compete not for your money but for the minutes of your day.',
+      'Every notification is designed to pull you back, and every infinite scroll removes the natural stopping point that books and films still have.',
+      'The consequence is that deep reading has become far less prevalent.',
+      'If apps restored the signals that tell us when to stop, attention could be cultivated rather than extracted.',
+      'The most fundamental skill in this economy may be the ability to choose what to ignore.',
+    ],
+    blanks: [
+      { sentenceIndex: 3, answer: 'prevalent' },
+      { sentenceIndex: 5, answer: 'fundamental' },
+    ],
+    questions: [
+      {
+        id: 'll1-q1',
+        stem: '讲座的核心观点是？',
+        options: [
+          'A. 平台在争夺用户的金钱',
+          'B. 平台在争夺用户的时间',
+          'C. 深度阅读已经消失',
+          'D. 技术本身就是问题',
+        ],
+        answer: 1,
+        analysis: 'compete not for your money but for the minutes of your day。',
+        cause: 'logic',
+      },
+      {
+        id: 'll1-q2',
+        stem: '演讲者认为注意力问题的本质是？',
+        options: [
+          'A. 技术问题',
+          'B. 设计问题',
+          'C. 经济危机',
+          'D. 教育缺失',
+        ],
+        answer: 1,
+        analysis: 'not a technology problem but a design problem。',
+        cause: 'locate',
+      },
+      {
+        id: 'll1-q3',
+        stem: '演讲者结论中最重要的技能是？',
+        options: [
+          'A. 快速阅读',
+          'B. 多任务处理',
+          'C. 选择忽略什么',
+          'D. 记忆信息',
+        ],
+        answer: 2,
+        analysis: 'the ability to choose what to ignore。尾句主旨。',
+        cause: 'listen',
+      },
+    ],
+  },
+]

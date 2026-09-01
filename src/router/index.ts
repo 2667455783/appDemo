@@ -1,0 +1,58 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    { path: '/welcome', component: () => import('@/views/Onboarding.vue'), meta: { tab: false, public: true } },
+    { path: '/', component: () => import('@/views/Home.vue'), meta: { tab: true } },
+    { path: '/train', component: () => import('@/views/Train.vue'), meta: { tab: true } },
+    { path: '/train/vocab', component: () => import('@/views/vocab/VocabPractice.vue'), meta: { tab: false } },
+    {
+      path: '/train/dictionary',
+      component: () => import('@/views/vocab/VocabDictionary.vue'),
+      meta: { tab: false },
+    },
+    { path: '/train/listening', component: () => import('@/views/listening/ListeningPractice.vue'), meta: { tab: false } },
+    { path: '/train/reading', component: () => import('@/views/reading/ReadingHub.vue'), meta: { tab: false } },
+    {
+      path: '/train/reading/:kind',
+      component: () => import('@/views/reading/ReadingPractice.vue'),
+      meta: { tab: false },
+    },
+    { path: '/train/writing', component: () => import('@/views/writing/WritingPractice.vue'), meta: { tab: false } },
+    {
+      path: '/train/translation',
+      component: () => import('@/views/translation/TranslationPractice.vue'),
+      meta: { tab: false },
+    },
+    { path: '/train/grammar', component: () => import('@/views/grammar/GrammarPractice.vue'), meta: { tab: false } },
+    {
+      path: '/train/templates',
+      component: () => import('@/views/diagnosis/TemplateHub.vue'),
+      meta: { tab: false },
+    },
+    { path: '/mock', component: () => import('@/views/MockList.vue'), meta: { tab: true } },
+    { path: '/translate', component: () => import('@/views/Translate.vue'), meta: { tab: true } },
+    { path: '/mock/:id/report', component: () => import('@/views/mock/MockReport.vue'), meta: { tab: false } },
+    { path: '/mock/:id', component: () => import('@/views/mock/MockExam.vue'), meta: { tab: false } },
+    { path: '/diagnosis', component: () => import('@/views/Diagnosis.vue'), meta: { tab: true } },
+    { path: '/diagnosis/errors', component: () => import('@/views/diagnosis/ErrorBook.vue'), meta: { tab: false } },
+    { path: '/diagnosis/plan', component: () => import('@/views/diagnosis/GapPlan.vue'), meta: { tab: false } },
+    { path: '/exam-review', component: () => import('@/views/exam/ExamReview.vue'), meta: { tab: false } },
+    { path: '/sprint', component: () => import('@/views/sprint/Sprint.vue'), meta: { tab: false } },
+    { path: '/profile', component: () => import('@/views/Profile.vue'), meta: { tab: true } },
+  ],
+  scrollBehavior() {
+    return { top: 0 }
+  },
+})
+
+router.beforeEach((to) => {
+  const user = useUserStore()
+  if (!user.onboarded && to.meta.public !== true) return '/welcome'
+  if (user.onboarded && to.path === '/welcome') return '/'
+  return true
+})
+
+export default router
