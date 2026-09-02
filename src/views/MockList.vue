@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import PageHeader from '@/components/PageHeader.vue'
 import { papersFor } from '@/data/mockExam'
 import { realPaperList } from '@/services/bank'
 import { LEVEL_LABEL } from '@/types'
@@ -20,8 +21,11 @@ function lastScore(id: string) {
 
 <template>
   <div class="page">
-    <h1 class="page-title">真题模考</h1>
-    <p class="page-sub">{{ LEVEL_LABEL[user.level] }} · 限时套卷出诊断，分项练请回题型页。</p>
+    <PageHeader
+      title="真题模考"
+      :subtle="`${LEVEL_LABEL[user.level]} · 限时套卷出诊断，分项练请回题型页。`"
+      :back="false"
+    />
 
     <p class="section-h">真题卷 · 2023.12</p>
     <p class="page-sub" style="margin-bottom: 10px">

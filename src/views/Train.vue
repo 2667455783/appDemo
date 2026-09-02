@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import PageHeader from '@/components/PageHeader.vue'
 
 const router = useRouter()
 
@@ -17,8 +18,7 @@ const items = [
 
 <template>
   <div class="page">
-    <h1 class="page-title">题型训练</h1>
-    <p class="page-sub">按官方卷结构拆开练。套卷留给模考页。</p>
+    <PageHeader title="题型训练" subtle="按官方卷结构拆开练。套卷留给模考页。" :back="false" />
     <button
       v-for="item in items"
       :key="item.route"

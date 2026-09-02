@@ -16,6 +16,7 @@ const all = ref<VocabWord[]>([])
 const level = ref<ExamLevel>('cet4')
 const letter = ref('A')
 const q = ref('')
+const pageEl = ref<HTMLElement | null>(null)
 
 onMounted(async () => {
   try {
@@ -66,38 +67,37 @@ function usageOf(w: VocabWord): string {
   return ''
 }
 
+function scrollToTop() {
+  if (pageEl.value) pageEl.value.scrollTop = 0
+}
+
 function setLevel(lv: ExamLevel) {
   level.value = lv
+  scrollToTop()
 }
 
 function pickLetter(L: string) {
   q.value = ''
   letter.value = L
+  scrollToTop()
 }
 </script>
 
 <template>
-  <div class="page full">
-    <PageHeader title="四六级词典" subtle="注释 · 用法 · 按 A–Z 浏览" @back="router.back()" />
-
-    <div class="chips">
-      <button class="chip" :class="{ on: level === 'cet4' }" type="button" @click="setLevel('cet4')">四级词表</button>
-      <button class="chip" :class="{ on: level === 'cet6' }" type="button" @click="setLevel('cet6')">六级词表</button>
+  <div ref="pageEl" class="page full dict-page">
+    <div class="dict-top">
+      <PageHeader title="四六级词典" subtle="注释 · 用法 · 按 A–Z 浏览" @back="router.back()" />
     </div>
 
-    <div class="field" style="margin: 12px 0">
-      <input v-model="q" type="search" placeholder="搜索单词 / 释义 / 搭配" />
-    </div>
-
-    <p v-if="loading" class="page-sub">词表加载中…</p>
-    <template v-else>
-      <p class="page-sub count">
-        {{ level === 'cet4' ? '四级' : '六级' }}共 {{ leveled.length }} 词
-        <template v-if="!q.trim()"> · 当前 {{ letter }}（{{ filtered.length }}）</template>
-        <template v-else> · 搜索命中 {{ filtered.length }}</template>
-      </p>
-
-      <div v-if="!q.trim()" class="az">
+    <div class="dict-sticky">
+      <div class="chips">
+        <button class="chip" :class="{ on: level === 'cet4' }" type="button" @click="setLevel('cet4')">四级词表</button>
+        <button class="chip" :class="{ on: level === 'cet6' }" type="button" @click="setLevel('cet6')">六级词表</button>
+      </div>
+      <div class="field search">
+        <input v-model="q" type="search" placeholder="搜索单词 / 释义 / 搭配" />
+      </div>
+      <div v-if="!loading && !q.trim()" class="az">
         <button
           v-for="L in letters"
           :key="L"
@@ -109,46 +109,73 @@ function pickLetter(L: string) {
           {{ L }}
         </button>
       </div>
+      <p v-if="!loading" class="page-sub count">
+        {{ level === 'cet4' ? '四级' : '六级' }}共 {{ leveled.length }} 词
+        <template v-if="!q.trim()"> · 当前 {{ letter }}（{{ filtered.length }}）</template>
+        <template v-else> · 搜索命中 {{ filtered.length }}</template>
+      </p>
+    </div>
 
-      <p v-if="!filtered.length" class="page-sub" style="margin-top: 16px">没有匹配的词。</p>
-
-      <article v-for="w in filtered" :key="w.id" class="card word">
-        <div class="row space top">
-          <div>
-            <p class="head">
-              <span class="w">{{ w.word }}</span>
-              <span v-if="w.phonetic" class="ph">{{ w.phonetic }}</span>
-            </p>
-            <p v-if="w.pos" class="pos">{{ w.pos }}</p>
+    <div v-if="!loading" class="dict-list">
+        <p v-if="!filtered.length" class="page-sub empty">没有匹配的词。</p>
+        <article v-for="w in filtered" :key="w.id" class="card word">
+          <div class="row space top">
+            <div>
+              <p class="head">
+                <span class="w">{{ w.word }}</span>
+                <span v-if="w.phonetic" class="ph">{{ w.phonetic }}</span>
+              </p>
+              <p v-if="w.pos" class="pos">{{ w.pos }}</p>
+            </div>
+            <div class="aside">
+              <SpeakWordButton :text="w.word" />
+              <span class="tag">{{ w.level === 'both' ? '四六级' : w.level === 'cet4' ? '四级' : '六级' }}</span>
+            </div>
           </div>
-          <div class="aside">
-            <SpeakWordButton :text="w.word" />
-            <span class="tag">{{ w.level === 'both' ? '四六级' : w.level === 'cet4' ? '四级' : '六级' }}</span>
-          </div>
-        </div>
-        <p class="meaning">{{ w.meaning || '（暂无释义）' }}</p>
-        <p v-if="usageOf(w)" class="usage">
-          <span class="u-label">用法</span>{{ usageOf(w) }}
-        </p>
-      </article>
-    </template>
+          <p class="meaning">{{ w.meaning || '（暂无释义）' }}</p>
+          <p v-if="usageOf(w)" class="usage">
+            <span class="u-label">用法</span>{{ usageOf(w) }}
+          </p>
+        </article>
+      </div>
   </div>
 </template>
 
 <style scoped>
+.dict-page {
+  padding: 0 0 24px;
+}
+.dict-top {
+  padding: 16px 18px 0;
+}
+.search {
+  margin: 10px 0;
+}
+.search:last-child {
+  margin-bottom: 0;
+}
 .count {
-  margin: 0 0 10px;
+  margin: 8px 0 10px;
+}
+.dict-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 8px 18px 0;
+  background: var(--paper);
+  border-radius: 0 0 16px 16px;
+  box-shadow: 0 10px 14px var(--paper);
 }
 .az {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 12px;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding: 8px 0;
-  background: var(--paper, #f7f3ea);
+}
+.dict-list {
+  padding: 0 18px 8px;
+}
+.empty {
+  margin-top: 16px;
 }
 .az-btn {
   width: 30px;

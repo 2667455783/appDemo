@@ -22,8 +22,11 @@ SSH 密钥：`C:\Users\PC\.ssh\vue_admin_deploy`（已写入 `scripts/release.co
 自动完成：版本号 +1 → `npm run build` → `cap sync` → 打 APK → 生成 `update.json` → SCP 上传服务器。
 
 ```powershell
-# 打包并上传
+# 打包并上传（更新版本号）
 npm run release:apk -- --notes "本次更新说明"
+
+# 打包并上传（不更新版本号）
+npm run release:apk -- --no-bump --notes "本次更新说明"
 
 # 只打包不上传
 npm run release:apk:local

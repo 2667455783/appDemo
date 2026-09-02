@@ -122,6 +122,19 @@ function run(cmd, cwd = root) {
   execSync(cmd, { cwd, stdio: 'inherit', shell: true, env: buildEnv })
 }
 
+const androidDir = join(root, 'android')
+const gradlew = process.platform === 'win32' ? '.\\gradlew.bat' : './gradlew'
+
+/** Windows 上残留 Gradle daemon 会占端口，assemble 报 BindException */
+function assembleAndroidApk() {
+  try {
+    run(`${gradlew} --stop`, androidDir)
+  } catch {
+    console.warn('gradle --stop 跳过（没有可停的 daemon）')
+  }
+  run(`${gradlew} assembleDebug --no-daemon`, androidDir)
+}
+
 function bumpSemver(v) {
   const parts = v.split('.').map((n) => parseInt(n, 10) || 0)
   while (parts.length < 3) parts.push(0)
@@ -188,12 +201,7 @@ console.log('已写入 public/update.json')
 if (!skipBuild) {
   run('npm run build')
   run('npx cap sync android')
-  run(
-    process.platform === 'win32'
-      ? '.\\gradlew.bat assembleDebug'
-      : './gradlew assembleDebug',
-    join(root, 'android'),
-  )
+  assembleAndroidApk()
 }
 
 const builtApk = join(root, 'android/app/build/outputs/apk/debug/app-debug.apk')

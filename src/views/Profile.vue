@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import PageHeader from '@/components/PageHeader.vue'
 import { LEVEL_LABEL } from '@/types'
 import type { ExamLevel, TargetScore } from '@/types'
 import { useUserStore } from '@/stores/user'
@@ -8,11 +9,13 @@ import { useStudyStore } from '@/stores/study'
 import { useAppUpdateStore } from '@/stores/appUpdate'
 import { getManifestUrl, openApkDownload, setManifestUrl } from '@/services/appUpdate'
 import { copyShareLink, shareToQQ, shareToWeChat } from '@/services/shareApp'
+import { useVoicePrefStore } from '@/stores/voicePref'
 
 const router = useRouter()
 const user = useUserStore()
 const study = useStudyStore()
 const update = useAppUpdateStore()
+const voicePref = useVoicePrefStore()
 
 const mastered = computed(() => {
   return Object.values(study.vocab).filter((c) => c.correct >= 2 && c.status === 'review').length
@@ -77,8 +80,11 @@ async function onShare(target: 'wechat' | 'qq' | 'copy') {
 
 <template>
   <div class="page">
-    <h1 class="page-title">{{ user.name }}</h1>
-    <p class="page-sub">{{ LEVEL_LABEL[user.level] }} · 目标 {{ user.targetScore }} · {{ user.examDate }}</p>
+    <PageHeader
+      :title="user.name"
+      :subtle="`${LEVEL_LABEL[user.level]} · 目标 ${user.targetScore} · ${user.examDate}`"
+      :back="false"
+    />
 
     <div class="grid2" style="margin-top: 16px">
       <div class="card">
@@ -171,7 +177,11 @@ async function onShare(target: 'wechat' | 'qq' | 'copy') {
       <p v-if="shareMsg" class="page-sub" style="margin-top: 8px">{{ shareMsg }}</p>
     </div>
 
-    <button class="btn ghost block" style="margin-top: 16px" type="button" @click="router.push('/exam-review')">正考成绩校准</button>
+    <button class="btn ghost block voice-entry" style="margin-top: 16px" type="button" @click="router.push('/profile/voices')">
+      <span>语色管理</span>
+      <span class="voice-now">{{ voicePref.current.name }}</span>
+    </button>
+    <button class="btn ghost block" style="margin-top: 10px" type="button" @click="router.push('/exam-review')">正考成绩校准</button>
     <button class="btn danger block" style="margin-top: 10px" type="button" @click="reset">重置演示数据</button>
   </div>
 </template>
@@ -273,5 +283,13 @@ async function onShare(target: 'wechat' | 'qq' | 'copy') {
   justify-content: center;
   font-size: 12px;
   font-weight: 800;
+}
+.voice-entry {
+  justify-content: space-between;
+}
+.voice-now {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--forest);
 }
 </style>

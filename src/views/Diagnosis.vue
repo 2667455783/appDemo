@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import PageHeader from '@/components/PageHeader.vue'
 import RadarChart from '@/components/RadarChart.vue'
 import { ERROR_CAUSE_LABEL, LEVEL_LABEL } from '@/types'
 import { estimateBand } from '@/utils/score'
@@ -14,8 +15,7 @@ const report = computed(() => study.latestReport)
 
 <template>
   <div class="page">
-    <h1 class="page-title">诊断本</h1>
-    <p class="page-sub">模考后看报告，正考后走另一条复盘线。</p>
+    <PageHeader title="诊断本" subtle="模考后看报告，正考后走另一条复盘线。" :back="false" />
 
     <div v-if="report" class="card" style="margin-top: 14px">
       <div class="row space">

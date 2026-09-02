@@ -40,6 +40,7 @@ const router = createRouter({
     { path: '/diagnosis/errors', component: () => import('@/views/diagnosis/ErrorBook.vue'), meta: { tab: false } },
     { path: '/diagnosis/plan', component: () => import('@/views/diagnosis/GapPlan.vue'), meta: { tab: false } },
     { path: '/exam-review', component: () => import('@/views/exam/ExamReview.vue'), meta: { tab: false } },
+    { path: '/profile/voices', component: () => import('@/views/profile/VoiceManage.vue'), meta: { tab: false } },
     { path: '/sprint', component: () => import('@/views/sprint/Sprint.vue'), meta: { tab: false } },
     { path: '/profile', component: () => import('@/views/Profile.vue'), meta: { tab: true } },
   ],

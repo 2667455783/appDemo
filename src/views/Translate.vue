@@ -267,7 +267,7 @@ onUnmounted(() => {
       </p>
 
       <!-- 语音诊断面板：显示每次点击语音后的逐步进度/错误，便于反馈卡在哪一步 -->
-      <div v-if="showDiag" class="diag">
+      <!-- <div v-if="showDiag" class="diag">
         <div class="row space" style="margin-bottom: 4px">
           <span class="diag-title">语音诊断</span>
           <button class="chip ghost" type="button" @click="clearDiag">清除</button>
@@ -275,7 +275,7 @@ onUnmounted(() => {
         <ol class="diag-list">
           <li v-for="(d, i) in diag" :key="i">{{ d }}</li>
         </ol>
-      </div>
+      </div> -->
 
       <div v-if="err" class="page-sub" style="color: var(--danger)">{{ err }}</div>
 

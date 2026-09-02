@@ -45,7 +45,8 @@ onUnmounted(() => {
     :disabled="!supported || !text.trim()"
     :title="supported ? title : '当前环境不支持朗读'"
     :aria-label="title"
-    @click="onClick"
+    @click.stop.prevent="onClick"
+    @pointerdown.stop
   >
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
