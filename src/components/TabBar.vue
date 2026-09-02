@@ -72,6 +72,6 @@ function active(to: string) {
   height: 8px;
   border-radius: 50%;
   background: var(--coral);
-  border: 1.5px solid #fffaf2;
+  border: 1.5px solid var(--paper-2);
 }
 </style>

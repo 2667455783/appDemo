@@ -37,8 +37,8 @@ function labelPos(i: number) {
 
 <template>
   <svg :width="size" :height="size" viewBox="0 0 220 220" class="radar">
-    <polygon v-for="s in [1, 0.66, 0.33]" :key="s" :points="web(s)" fill="none" stroke="#e4d9c8" stroke-width="1" />
-    <polygon :points="dataPoly()" fill="rgba(31,77,58,0.22)" stroke="#1f4d3a" stroke-width="1.6" />
+    <polygon v-for="s in [1, 0.66, 0.33]" :key="s" :points="web(s)" fill="none" stroke="var(--line)" stroke-width="1" />
+    <polygon :points="dataPoly()" fill="rgba(var(--forest-rgb), 0.22)" stroke="rgb(var(--forest-rgb))" stroke-width="1.6" />
     <text
       v-for="(a, i) in axes"
       :key="a.label"
@@ -47,7 +47,7 @@ function labelPos(i: number) {
       text-anchor="middle"
       dominant-baseline="middle"
       font-size="10"
-      fill="#5c564c"
+      fill="var(--ink-soft)"
     >
       {{ a.label }}
     </text>

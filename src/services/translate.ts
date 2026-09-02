@@ -13,7 +13,7 @@ export type TranslateResult = {
   detected: Lang
 }
 
-function detectLang(text: string): Lang {
+export function detectLang(text: string): Lang {
   return /[\u4e00-\u9fff]/.test(text) ? 'zh' : 'en'
 }
 

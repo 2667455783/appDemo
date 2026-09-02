@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
-import { translateAuto, translateText, TRANSLATE_MAX_CHARS, type Lang } from '@/services/translate'
+import { detectLang, translateAuto, translateText, TRANSLATE_MAX_CHARS, type Lang } from '@/services/translate'
 import { canSpeak, speakText, stopSpeak } from '@/utils/audio'
 
 const input = ref('')
@@ -13,16 +13,11 @@ const auto = ref(true)
 const loading = ref(false)
 const err = ref('')
 const speakingOut = ref(false)
+const copied = ref(false)
+let copyTimer: ReturnType<typeof setTimeout> | null = null
 
 type HistoryItem = { id: string; input: string; output: string; from: Lang; to: Lang; at: string }
 const history = ref<HistoryItem[]>(JSON.parse(localStorage.getItem('translateHistory') || '[]'))
-
-function swap() {
-  auto.value = false
-  const f = from.value
-  from.value = to.value
-  to.value = f
-}
 
 async function run() {
   if (!input.value.trim() || loading.value) return
@@ -30,6 +25,7 @@ async function run() {
   err.value = ''
   output.value = ''
   alts.value = []
+  copied.value = false
   try {
     if (auto.value) {
       const r = await translateAuto(input.value)
@@ -76,10 +72,41 @@ function clearHistory() {
 
 async function copyOut() {
   if (!output.value) return
+  const ok = await copyToClipboard(output.value)
+  if (copyTimer) clearTimeout(copyTimer)
+  if (!ok) {
+    copied.value = false
+    err.value = '复制失败，请长按译文手动复制'
+    return
+  }
+  copied.value = true
+  copyTimer = setTimeout(() => {
+    copied.value = false
+    copyTimer = null
+  }, 3000)
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(output.value)
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
   } catch {
-    // ignore
+    /* fall through */
+  }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.left = '-9999px'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    ta.remove()
+    return ok
+  } catch {
+    return false
   }
 }
 
@@ -110,10 +137,24 @@ import { startVoice, stopVoice, forceStop, voiceAvailable, requestPermission, is
 const recording = ref(false)
 const micErr = ref('')
 const micStatus = ref('')
-/** 听写语言：跟翻译方向解耦，避免「自动+空输入」误用英文听中文 */
-const listenLang = ref<VoiceLang>('zh-CN')
+/** 录音进行中锁定语言，避免中途改翻译方向导致显示和识别不一致 */
+const sessionListenLang = ref<VoiceLang>('zh-CN')
 const diag = ref<string[]>([])
 const showDiag = ref(false)
+
+function langToVoice(lang: Lang): VoiceLang {
+  return lang === 'zh' ? 'zh-CN' : 'en-US'
+}
+
+/** 听写语言：跟翻译方向走；自动模式按已有文字判断，空白默认中文 */
+function resolveListenLang(): VoiceLang {
+  if (!auto.value) return langToVoice(from.value)
+  const typed = input.value.trim()
+  if (typed) return langToVoice(detectLang(typed))
+  return 'zh-CN'
+}
+
+const listenLang = computed(() => (recording.value ? sessionListenLang.value : resolveListenLang()))
 
 function pushDiag(step: string) {
   const t = new Date().toLocaleTimeString()
@@ -136,6 +177,7 @@ async function toggleMic() {
     return
   }
   clearDiag()
+  sessionListenLang.value = resolveListenLang()
   pushDiag('用户点击语音按钮 listenLang=' + listenLang.value)
   const check = await voiceAvailable()
   pushDiag('voiceAvailable.ok=' + check.ok + (check.reason ? ' reason=' + check.reason : ''))
@@ -195,6 +237,7 @@ async function toggleMic() {
 onUnmounted(() => {
   forceStop()
   stopSpeak()
+  if (copyTimer) clearTimeout(copyTimer)
 })
 </script>
 
@@ -204,12 +247,13 @@ onUnmounted(() => {
 
     <div class="card">
       <div class="langbar">
-        <button class="chip" :class="{ on: auto }" type="button" @click="auto = true">自动</button>
+        <button class="chip" :class="{ on: auto }" type="button" :disabled="recording" @click="auto = true">自动</button>
         <button
           class="chip"
           :class="{ on: !auto && from === 'en' }"
           type="button"
-          @click="auto = false; from = 'en'; to = 'zh'; listenLang = 'en-US'"
+          :disabled="recording"
+          @click="auto = false; from = 'en'; to = 'zh'"
         >
           英→中
         </button>
@@ -217,16 +261,12 @@ onUnmounted(() => {
           class="chip"
           :class="{ on: !auto && from === 'zh' }"
           type="button"
-          @click="auto = false; from = 'zh'; to = 'en'; listenLang = 'zh-CN'"
+          :disabled="recording"
+          @click="auto = false; from = 'zh'; to = 'en'"
         >
           中→英
         </button>
-        <button class="chip ghost" type="button" @click="swap" :disabled="auto">⇄</button>
-      </div>
-      <div class="langbar listen-bar">
-        <span class="muted">听写语言</span>
-        <button class="chip" :class="{ on: listenLang === 'zh-CN' }" type="button" :disabled="recording" @click="listenLang = 'zh-CN'">听中文</button>
-        <button class="chip" :class="{ on: listenLang === 'en-US' }" type="button" :disabled="recording" @click="listenLang = 'en-US'">听英文</button>
+        <!-- <button class="chip ghost" type="button" @click="swap" :disabled="auto || recording">⇄</button> -->
       </div>
 
       <textarea
@@ -261,10 +301,11 @@ onUnmounted(() => {
       </div>
 
       <p class="page-sub tip">电脑浏览器若在线语音失败，点停止后会自动用本地识别（首次稍慢）。</p>
-      <p v-if="micErr" class="page-sub" style="color: var(--danger); margin: 0 0 6px">⚠ {{ micErr }}</p>
+      <!-- 语音诊断面板：显示每次点击语音后获取到的值 -->
+      <!-- <p v-if="micErr" class="page-sub" style="color: var(--danger); margin: 0 0 6px">⚠ {{ micErr }}</p>
       <p v-if="micStatus" class="page-sub" :style="{ margin: '0 0 6px', color: recording ? 'var(--danger)' : 'var(--ink-soft)' }">
         {{ recording ? '● ' : '' }}{{ micStatus }}
-      </p>
+      </p> -->
 
       <!-- 语音诊断面板：显示每次点击语音后的逐步进度/错误，便于反馈卡在哪一步 -->
       <!-- <div v-if="showDiag" class="diag">
@@ -325,6 +366,12 @@ onUnmounted(() => {
         <p class="page-sub">{{ h.output }}</p>
       </article>
     </div>
+
+    <Teleport to=".phone">
+      <Transition name="copy-fade">
+        <div v-if="copied" class="copy-toast" role="status">复制成功</div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -336,8 +383,9 @@ onUnmounted(() => {
   flex-wrap: wrap;
   align-items: center;
 }
-.listen-bar {
-  margin-top: -4px;
+.listen-hint {
+  margin: -4px 0 10px;
+  font-size: 12px;
 }
 .tinput {
   width: 100%;
@@ -396,6 +444,11 @@ onUnmounted(() => {
   background: transparent;
   border: 1px solid var(--line);
 }
+.chip.ghost.on {
+  border-color: var(--forest);
+  color: var(--forest);
+  background: var(--moss, #e7efe6);
+}
 .char-hint {
   margin: 8px 0 10px;
   font-size: 13px;
@@ -452,5 +505,29 @@ onUnmounted(() => {
 }
 .diag-list li {
   word-break: break-all;
+}
+.copy-toast {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  z-index: 40;
+  transform: translate(-50%, -50%);
+  padding: 16px 28px;
+  border-radius: 16px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  color: var(--forest);
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 12px 36px rgba(28, 25, 21, 0.18);
+  pointer-events: none;
+}
+.copy-fade-enter-active,
+.copy-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.copy-fade-enter-from,
+.copy-fade-leave-to {
+  opacity: 0;
 }
 </style>

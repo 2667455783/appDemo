@@ -1,42 +1,30 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import { LEVEL_LABEL } from '@/types'
-import type { ExamLevel, TargetScore } from '@/types'
 import { useUserStore } from '@/stores/user'
 import { useStudyStore } from '@/stores/study'
 import { useAppUpdateStore } from '@/stores/appUpdate'
-import { getManifestUrl, openApkDownload, setManifestUrl } from '@/services/appUpdate'
-import { copyShareLink, shareToQQ, shareToWeChat } from '@/services/shareApp'
-import { useVoicePrefStore } from '@/stores/voicePref'
 
 const router = useRouter()
 const user = useUserStore()
 const study = useStudyStore()
 const update = useAppUpdateStore()
-const voicePref = useVoicePrefStore()
 
 const mastered = computed(() => {
   return Object.values(study.vocab).filter((c) => c.correct >= 2 && c.status === 'review').length
 })
 
-const manifestInput = ref(getManifestUrl())
-const showUrlEdit = ref(false)
-const shareMsg = ref('')
-const sharing = ref(false)
+const examLine = computed(
+  () => `${LEVEL_LABEL[user.level]} · 目标 ${user.targetScore} · ${user.examDate}`,
+)
 
-onMounted(async () => {
-  await update.loadLocal()
-  await update.silentCheck(true)
+const displayMotto = computed(() => {
+  if (user.motto.trim()) return user.motto
+  const short = user.level === 'cet4' ? '四级' : '六级'
+  return `每天进步一点点，目标${short}${user.targetScore}+`
 })
-
-function setLevel(level: ExamLevel) {
-  user.updateProfile({ level })
-}
-function setTarget(targetScore: TargetScore) {
-  user.updateProfile({ targetScore })
-}
 
 function reset() {
   if (!confirm('清除本地学习数据并回到欢迎页？')) return
@@ -44,49 +32,71 @@ function reset() {
   router.replace('/welcome')
   location.reload()
 }
-
-function saveManifestUrl() {
-  setManifestUrl(manifestInput.value)
-  update.resetAfterUrlChange()
-}
-
-function onDownload() {
-  if (!update.remote?.apkUrl) return
-  if (update.remote.apkUrl.includes('example.com')) {
-    update.checkMsg = '请先把 update.json 里的 apkUrl 改成真实 APK 下载地址'
-    return
-  }
-  openApkDownload(update.remote.apkUrl)
-  update.checkMsg = '已打开下载链接，下载完成后按提示安装（需允许「未知来源」）'
-}
-
-async function onShare(target: 'wechat' | 'qq' | 'copy') {
-  if (sharing.value) return
-  sharing.value = true
-  shareMsg.value = target === 'copy' ? '' : '正在准备本机安装包…'
-  try {
-    const r =
-      target === 'wechat'
-        ? await shareToWeChat()
-        : target === 'qq'
-          ? await shareToQQ()
-          : await copyShareLink()
-    shareMsg.value = r.message
-  } finally {
-    sharing.value = false
-  }
-}
 </script>
 
 <template>
   <div class="page">
-    <PageHeader
-      :title="user.name"
-      :subtle="`${LEVEL_LABEL[user.level]} · 目标 ${user.targetScore} · ${user.examDate}`"
-      :back="false"
-    />
+    <PageHeader title="我的" :subtle="examLine" :back="false" />
 
-    <div class="grid2" style="margin-top: 16px">
+    <div class="user-card">
+      <div class="avatar" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="56" height="56">
+          <circle cx="32" cy="32" r="32" fill="var(--paper)" />
+          <path
+            d="M18 54c2-11 8-16 14-16s12 5 14 16"
+            fill="none"
+            stroke="var(--ink)"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+          <path
+            d="M22 28c1-9 6-14 10-14 5 0 10 5 11 14 0 6-4 11-10.5 11S22 34 22 28Z"
+            fill="none"
+            stroke="var(--ink)"
+            stroke-width="1.6"
+            stroke-linejoin="round"
+          />
+          <path d="M24 26c2 2 4 2 8 0" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linecap="round" />
+          <circle cx="27.5" cy="29.5" r="1.1" fill="var(--ink)" />
+          <circle cx="36.2" cy="29.5" r="1.1" fill="var(--ink)" />
+          <path d="M30.5 33.2c1.2 1.2 3.2 1.2 4.4 0" fill="none" stroke="var(--ink)" stroke-width="1.3" stroke-linecap="round" />
+          <path d="M24 46.5 32 42l8 4.5v8.5H24v-8.5Z" fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.5" stroke-linejoin="round" />
+          <path d="M32 42v9" fill="none" stroke="var(--ink)" stroke-width="1.3" />
+        </svg>
+      </div>
+      <div class="user-meta">
+        <p class="user-name">{{ user.name }}</p>
+        <p class="user-date">{{ user.birthday || '未设置生日' }}</p>
+        <p class="user-motto">{{ displayMotto }}</p>
+      </div>
+      <div class="user-actions">
+        <button class="icon-btn" type="button" aria-label="编辑资料" @click="router.push('/profile/edit')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M4 20h4.2L19.4 8.8a1.6 1.6 0 0 0 0-2.3L16.5 3.6a1.6 1.6 0 0 0-2.3 0L3 14.8V20Z"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linejoin="round"
+            />
+            <path d="M13.2 5.8 17.2 9.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button class="icon-btn" type="button" aria-label="设置" @click="router.push('/profile/settings')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7" />
+            <path
+              d="M19.4 13a7.8 7.8 0 0 0 .1-2l2-1.5-2-3.4-2.3.5a7.6 7.6 0 0 0-1.7-1L13 2h-2l-.5 2.6a7.6 7.6 0 0 0-1.7 1L6.5 6.1 4.5 9.5 6.5 11a7.8 7.8 0 0 0 0 2l-2 1.5 2 3.4 2.3-.5a7.6 7.6 0 0 0 1.7 1L11 22h2l.5-2.6a7.6 7.6 0 0 0 1.7-1l2.3.5 2-3.4-2-1.5Z"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span v-if="update.hasUpdate" class="sec-dot" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+
+    <div class="grid2">
       <div class="card">
         <p class="muted">连续打卡</p>
         <p class="num">{{ user.streak }}</p>
@@ -97,199 +107,89 @@ async function onShare(target: 'wechat' | 'qq' | 'copy') {
       </div>
     </div>
 
-    <p class="section-h">等级</p>
-    <div class="chips">
-      <button class="chip" :class="{ on: user.level === 'cet4' }" type="button" @click="setLevel('cet4')">四级</button>
-      <button class="chip" :class="{ on: user.level === 'cet6' }" type="button" @click="setLevel('cet6')">六级</button>
-    </div>
-
-    <p class="section-h">目标分</p>
-    <div class="chips">
-      <button class="chip" :class="{ on: user.targetScore === 425 }" type="button" @click="setTarget(425)">425 过线</button>
-      <button class="chip" :class="{ on: user.targetScore === 550 }" type="button" @click="setTarget(550)">550 优秀</button>
-      <button class="chip" :class="{ on: user.targetScore === 600 }" type="button" @click="setTarget(600)">600 冲刺</button>
-    </div>
-
-    <div class="field" style="margin-top: 16px">
-      <label>考试日期</label>
-      <input :value="user.examDate" type="date" @change="user.updateProfile({ examDate: ($event.target as HTMLInputElement).value })" />
-    </div>
-
     <div class="card" style="margin-top: 16px">
       <p class="muted">学习数据</p>
       <p class="page-sub">模考 {{ study.reports.length }} 次 · 错题待消灭 {{ study.openErrors.length }} · 补漏任务 {{ study.gapPlan.length }}</p>
     </div>
 
-    <p class="section-h">
-      版本控制
-      <span v-if="update.hasUpdate" class="sec-dot" aria-hidden="true" />
-    </p>
-    <div class="card ver-card">
-      <div class="row space">
-        <div>
-          <p class="muted">当前版本</p>
-          <p class="ver">{{ update.localVer }} <span class="code">(#{{ update.localCode }})</span></p>
-        </div>
-        <button class="btn sm primary check-btn" type="button" :disabled="update.checking" @click="update.manualCheck()">
-          {{ update.checking ? '检查中…' : '检查更新' }}
-          <span v-if="update.hasUpdate" class="badge-dot" aria-label="有新版本" />
-        </button>
-      </div>
-
-      <p v-if="update.checkMsg" class="page-sub" style="margin-top: 10px">{{ update.checkMsg }}</p>
-
-      <div v-if="update.hasUpdate && update.remote" class="update-box">
-        <p class="update-title">新版本 {{ update.remote.version }}</p>
-        <p v-if="update.remote.notes" class="page-sub">{{ update.remote.notes }}</p>
-        <p v-if="update.remote.publishedAt" class="muted" style="margin-top: 4px">发布于 {{ update.remote.publishedAt }}</p>
-        <button class="btn primary block" style="margin-top: 12px" type="button" @click="onDownload">
-          下载并安装
-        </button>
-      </div>
-
-      <div v-if="showUrlEdit" class="field" style="margin-top: 10px">
-        <label>更新清单 URL（update.json）</label>
-        <input v-model="manifestInput" type="url" placeholder="https://你的域名/update.json" />
-        <button class="btn sm ghost" style="margin-top: 8px" type="button" @click="saveManifestUrl">保存地址</button>
-        <p class="page-sub" style="margin-top: 8px">
-          默认清单：http://134.175.54.151/englishStudy/update.json
-          发版：本机执行 npm run release:apk（自动升版本、打包、上传）。
-        </p>
-      </div>
-    </div>
-
-    <p class="section-h">推荐给好友</p>
-    <div class="card share-card">
-      <p class="page-sub">直接分享本机已安装的 APK，无需联网再下载。</p>
-      <div class="share-row">
-        <button class="share-btn wechat" type="button" :disabled="sharing" @click="onShare('wechat')">
-          <span class="share-ico" aria-hidden="true">微</span>
-          微信好友
-        </button>
-        <button class="share-btn qq" type="button" :disabled="sharing" @click="onShare('qq')">
-          <span class="share-ico" aria-hidden="true">Q</span>
-          QQ 好友
-        </button>
-      </div>
-      <button class="btn sm ghost block" style="margin-top: 10px" type="button" :disabled="sharing" @click="onShare('copy')">
-        仅复制下载链接（备用）
-      </button>
-      <p v-if="shareMsg" class="page-sub" style="margin-top: 8px">{{ shareMsg }}</p>
-    </div>
-
-    <button class="btn ghost block voice-entry" style="margin-top: 16px" type="button" @click="router.push('/profile/voices')">
-      <span>语色管理</span>
-      <span class="voice-now">{{ voicePref.current.name }}</span>
-    </button>
-    <button class="btn ghost block" style="margin-top: 10px" type="button" @click="router.push('/exam-review')">正考成绩校准</button>
+    <button class="btn ghost block" style="margin-top: 16px" type="button" @click="router.push('/exam-review')">正考成绩校准</button>
     <button class="btn danger block" style="margin-top: 10px" type="button" @click="reset">重置演示数据</button>
   </div>
 </template>
 
 <style scoped>
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px 14px 14px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.avatar {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--paper);
+}
+.user-meta {
+  flex: 1;
+  min-width: 0;
+}
+.user-name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-date {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.user-motto {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.user-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.icon-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+}
 .num {
   font-family: var(--serif);
   font-size: 28px;
 }
-.ver-card {
-  text-align: left;
-}
-.ver {
-  font-family: var(--serif);
-  font-size: 22px;
-  margin: 2px 0 0;
-}
-.code {
-  font-size: 13px;
-  color: var(--ink-soft);
-  font-family: inherit;
-}
-.update-box {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--line);
-}
-.update-title {
-  margin: 0;
-  font-weight: 700;
-  color: var(--forest);
-}
-.section-h {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
 .sec-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--coral);
   box-shadow: 0 0 0 2px rgba(184, 92, 74, 0.2);
-}
-.check-btn {
-  position: relative;
-}
-.badge-dot {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--coral);
-  border: 2px solid var(--paper-2);
-  box-shadow: 0 0 0 1px rgba(184, 92, 74, 0.35);
-}
-.share-card {
-  text-align: left;
-}
-.share-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 10px;
-}
-.share-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 44px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  font-weight: 700;
-  font-size: 14px;
-  color: #fff;
-}
-.share-btn:disabled {
-  opacity: 0.6;
-}
-.share-btn.wechat {
-  background: #07c160;
-  border-color: #07c160;
-}
-.share-btn.qq {
-  background: #12b7f5;
-  border-color: #12b7f5;
-}
-.share-ico {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.22);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 800;
-}
-.voice-entry {
-  justify-content: space-between;
-}
-.voice-now {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--forest);
 }
 </style>

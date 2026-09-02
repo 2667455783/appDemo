@@ -60,7 +60,7 @@ onUnmounted(() => {
 
 <template>
   <div class="page full">
-    <PageHeader title="语色管理" subtle="有道分美英（tomato/schedule 能听出差别），百度英语一种发音，没网用系统音色" @back="router.back()" />
+    <PageHeader title="语色管理" subtle="有道、百度走在线发音；系统音色走本机引擎" @back="router.back()" />
 
     <div class="card now">
       <p class="muted">当前语色</p>
@@ -98,10 +98,6 @@ onUnmounted(() => {
         </div>
       </button>
     </template>
-
-    <p class="page-sub foot">
-      有道、百度走在线发音；系统音色走本机引擎。在线失败时才会回退系统语音。
-    </p>
   </div>
 </template>
 

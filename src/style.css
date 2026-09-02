@@ -7,12 +7,16 @@
   --line: #e4d9c8;
   --forest: #1f4d3a;
   --forest-2: #2d6a52;
+  --forest-rgb: 31, 77, 58;
   --moss: #e4f0e8;
   --gold: #b8894a;
   --gold-soft: #f3e6d0;
   --coral: #b85c4a;
   --coral-soft: #f6e4df;
+  --track: #ece7dc;
+  --on-primary: #f6f1e7;
   --sky: #3d5a73;
+  --stage: #243028;
   --shadow: 0 18px 50px rgba(28, 25, 21, 0.18);
   --radius: 16px;
   --tab-h: 64px;
@@ -36,7 +40,7 @@ body,
 body {
   font-family: var(--sans);
   color: var(--ink);
-  background: #243028;
+  background: var(--stage);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -127,9 +131,6 @@ p {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px 16px;
-}
-
-.card + .card {
   margin-top: 12px;
 }
 
@@ -176,7 +177,7 @@ p {
 }
 
 .tag.ink {
-  background: #ece7dc;
+  background: var(--track);
   color: var(--ink-soft);
 }
 
@@ -199,7 +200,7 @@ p {
 
 .btn.primary {
   background: var(--forest);
-  color: #f6f1e7;
+  color: var(--on-primary);
 }
 
 .btn.ghost {
@@ -313,7 +314,7 @@ p {
 
 .progress {
   height: 8px;
-  background: #ece7dc;
+  background: var(--track);
   border-radius: 99px;
   overflow: hidden;
 }
@@ -388,7 +389,7 @@ p {
   right: 0;
   bottom: 0;
   height: var(--tab-h);
-  background: #fffaf2;
+  background: var(--paper-2);
   border-top: 1px solid var(--line);
   display: flex;
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
@@ -412,7 +413,7 @@ p {
 
 .hero-ink {
   background: var(--forest);
-  color: #f6f1e7;
+  color: var(--on-primary);
   border-radius: 20px;
   padding: 18px 18px 16px;
 }

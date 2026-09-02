@@ -58,7 +58,7 @@ const phaseText = computed(() => {
       <span class="small-link">查看</span>
     </div>
 
-    <div class="grid2" style="margin-top: 12px">
+    <div class="grid2">
       <button class="card mini" type="button" @click="router.push('/sprint')">
         <p class="t-title">冲刺清单</p>
         <p class="page-sub">节奏与考场注意</p>

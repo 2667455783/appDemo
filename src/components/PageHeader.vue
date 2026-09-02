@@ -61,9 +61,9 @@ const emit = defineEmits<{ back: [] }>()
   height: 32px;
   padding: 0 14px 0 10px;
   margin: 0;
-  border: 1px solid rgba(31, 77, 58, 0.18);
+  border: 1px solid color-mix(in srgb, var(--forest) 22%, transparent);
   border-radius: 999px;
-  background: #e8f0eb;
+  background: var(--moss);
   color: var(--forest);
   font-size: 14px;
   font-weight: 600;
@@ -72,7 +72,7 @@ const emit = defineEmits<{ back: [] }>()
 }
 
 .back-btn:active {
-  background: #dce8e1;
+  background: color-mix(in srgb, var(--forest) 16%, var(--paper-2));
 }
 
 .chev {

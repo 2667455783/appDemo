@@ -190,7 +190,7 @@ function pickLetter(L: string) {
 }
 .az-btn.on {
   background: var(--forest);
-  color: #f6f1e7;
+  color: var(--on-primary);
   border-color: var(--forest);
 }
 .word {

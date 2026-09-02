@@ -8,7 +8,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 }
 
 /** 与 android/app/build.gradle versionCode 保持一致，发版时同步 +1 */
-const APP_VERSION_CODE = 15
+const APP_VERSION_CODE = 16
 
 /** 电脑试听百度：浏览器直连会被 Origin: localhost 拦成空响应 */
 const baiduTtsProxy: Record<string, ProxyOptions> = {
@@ -35,7 +35,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5174,
+    port: 8000,
     host: true,
     proxy: baiduTtsProxy,
   },
