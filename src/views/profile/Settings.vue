@@ -5,11 +5,13 @@ import PageHeader from '@/components/PageHeader.vue'
 import { useAppUpdateStore } from '@/stores/appUpdate'
 import { useVoicePrefStore } from '@/stores/voicePref'
 import { useThemeStore } from '@/stores/theme'
+import { useReminderStore } from '@/stores/reminder'
 
 const router = useRouter()
 const update = useAppUpdateStore()
 const voicePref = useVoicePrefStore()
 const theme = useThemeStore()
+const reminder = useReminderStore()
 
 onMounted(() => {
   void update.loadLocal()
@@ -34,6 +36,10 @@ onMounted(() => {
     <button class="btn ghost block menu-entry" style="margin-top: 10px" type="button" @click="router.push('/profile/voices')">
       <span>语色管理</span>
       <span class="menu-now">{{ voicePref.current.name }}</span>
+    </button>
+    <button class="btn ghost block menu-entry" style="margin-top: 10px" type="button" @click="router.push('/profile/reminder')">
+      <span>学习提醒</span>
+      <span class="menu-now">{{ reminder.statusLabel }}</span>
     </button>
     <button class="btn ghost block menu-entry" style="margin-top: 10px" type="button" @click="router.push('/profile/theme')">
       <span>外观</span>

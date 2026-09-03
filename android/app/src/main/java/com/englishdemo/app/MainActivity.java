@@ -2,6 +2,7 @@ package com.englishdemo.app;
 
 import android.os.Bundle;
 
+import com.englishdemo.app.reminder.StudyReminderPlugin;
 import com.englishdemo.app.share.ShareAppPlugin;
 import com.englishdemo.app.tts.AppTtsPlugin;
 import com.englishdemo.app.vosk.VoskSpeechPlugin;
@@ -13,6 +14,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VoskSpeechPlugin.class);
         registerPlugin(ShareAppPlugin.class);
         registerPlugin(AppTtsPlugin.class);
+        registerPlugin(StudyReminderPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -1,8 +1,8 @@
 {
-  "version": "1.0.15",
-  "versionCode": 16,
+  "version": "1.0.21",
+  "versionCode": 22,
   "apkUrl": "http://134.175.54.151/englishStudy/英语备考.apk",
-  "notes": "样式调整",
-  "publishedAt": "2026-09-02",
+  "notes": "新增消息提醒功能",
+  "publishedAt": "2026-09-03",
   "force": false
 }

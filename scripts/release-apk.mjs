@@ -13,7 +13,7 @@
  *   bash scripts/server-setup-englishStudy.sh
  * 并确保本机可 SSH：ssh root@134.175.54.151
  */
-import { execSync } from 'node:child_process'
+import { execSync, spawnSync } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
@@ -115,7 +115,68 @@ function ensureAndroidEnv() {
   return env
 }
 
+/** Windows 上 npm 子进程的 PATH 常缺 OpenSSH，需解析 ssh/scp 完整路径 */
+function resolveSshTools(env) {
+  const isWin = process.platform === 'win32'
+  const candidates = isWin
+    ? [
+        join(process.env.WINDIR || 'C:\\Windows', 'System32', 'OpenSSH', 'ssh.exe'),
+        'C:\\Program Files\\Git\\usr\\bin\\ssh.exe',
+      ]
+    : ['ssh']
+
+  let ssh = 'ssh'
+  for (const p of candidates) {
+    if (p === 'ssh' || existsSync(p)) {
+      ssh = p.includes(' ') ? `"${p}"` : p
+      break
+    }
+  }
+
+  let scp = 'scp'
+  if (isWin) {
+    const scpCandidates = [
+      join(process.env.WINDIR || 'C:\\Windows', 'System32', 'OpenSSH', 'scp.exe'),
+      'C:\\Program Files\\Git\\usr\\bin\\scp.exe',
+    ]
+    for (const p of scpCandidates) {
+      if (existsSync(p)) {
+        scp = p.includes(' ') ? `"${p}"` : p
+        break
+      }
+    }
+    if (scp === 'scp' && ssh !== 'ssh') {
+      const sshPath = ssh.replace(/^"|"$/g, '')
+      const scpPath = sshPath.replace(/ssh\.exe$/i, 'scp.exe')
+      if (existsSync(scpPath)) scp = scpPath.includes(' ') ? `"${scpPath}"` : scpPath
+    }
+  }
+
+  if (isWin && ssh === 'ssh') {
+    try {
+      const out = spawnSync('where.exe', ['ssh'], { encoding: 'utf-8', env }).stdout?.trim()
+      const first = out?.split(/\r?\n/).find(Boolean)
+      if (first && existsSync(first)) {
+        ssh = first.includes(' ') ? `"${first}"` : first
+        const scpPath = first.replace(/ssh\.exe$/i, 'scp.exe')
+        if (existsSync(scpPath)) scp = scpPath.includes(' ') ? `"${scpPath}"` : scpPath
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (isWin && ssh === 'ssh') {
+    console.error('未找到 ssh/scp。请安装「OpenSSH 客户端」（Windows 可选功能），或使用：')
+    console.error('  npm run release:apk -- --skip-upload')
+    process.exit(1)
+  }
+
+  return { ssh, scp }
+}
+
 const buildEnv = ensureAndroidEnv()
+const { ssh: sshBin, scp: scpBin } = resolveSshTools(buildEnv)
 
 function run(cmd, cwd = root) {
   console.log(`\n> ${cmd}`)
@@ -269,31 +330,36 @@ const port = cfg.port || 22
 const identity = cfg.identityFile
   ? `-i "${String(cfg.identityFile).replace(/\\/g, '/')}" -o IdentitiesOnly=yes`
   : ''
-const sshBase = `ssh -p ${port} ${identity}`.replace(/\s+/g, ' ').trim()
-const scpBase = `scp -P ${port} ${identity}`.replace(/\s+/g, ' ').trim()
+const sshBase = `${sshBin} -p ${port} ${identity}`.replace(/\s+/g, ' ').trim()
+const scpBase = `${scpBin} -P ${port} ${identity}`.replace(/\s+/g, ' ').trim()
 
 console.log(`\n上传到 ${remote}:${remoteDir}`)
+console.log(`使用 ${sshBin} / ${scpBin}`)
 try {
   execSync(`${sshBase} ${remote} "mkdir -p ${remoteDir}"`, {
     stdio: 'inherit',
     shell: true,
+    env: buildEnv,
   })
   execSync(`${scpBase} "${outApk}" "${remote}:${remoteDir}/${apkFileName}"`, {
     stdio: 'inherit',
     shell: true,
+    env: buildEnv,
   })
   execSync(`${scpBase} "${join(releaseDir, 'latest.apk')}" "${remote}:${remoteDir}/latest.apk"`, {
     stdio: 'inherit',
     shell: true,
+    env: buildEnv,
   })
   execSync(`${scpBase} "${outJson}" "${remote}:${remoteDir}/update.json"`, {
     stdio: 'inherit',
     shell: true,
+    env: buildEnv,
   })
   // 远端同样只留当前 + 上一版 app-*.apk（保留 latest.apk / update.json）
   const pruneRemote = `cd ${remoteDir} && ls -1 app-*.apk 2>/dev/null | sort -V | head -n -2 | xargs -r rm -f`
   try {
-    execSync(`${sshBase} ${remote} "${pruneRemote}"`, { stdio: 'inherit', shell: true })
+    execSync(`${sshBase} ${remote} "${pruneRemote}"`, { stdio: 'inherit', shell: true, env: buildEnv })
   } catch {
     console.warn('远端旧包清理跳过（不影响本次上传）')
   }

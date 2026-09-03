@@ -43,6 +43,7 @@ const router = createRouter({
     { path: '/profile/edit', component: () => import('@/views/profile/EditProfile.vue'), meta: { tab: false } },
     { path: '/profile/voices', component: () => import('@/views/profile/VoiceManage.vue'), meta: { tab: false } },
     { path: '/profile/settings', component: () => import('@/views/profile/Settings.vue'), meta: { tab: false } },
+    { path: '/profile/reminder', component: () => import('@/views/profile/Reminder.vue'), meta: { tab: false } },
     { path: '/profile/theme', component: () => import('@/views/profile/ThemeManage.vue'), meta: { tab: false } },
     { path: '/profile/appearance', redirect: '/profile/theme' },
     { path: '/profile/version', component: () => import('@/views/profile/VersionControl.vue'), meta: { tab: false } },
