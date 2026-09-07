@@ -247,3 +247,16 @@ export const TEMPLATE_BY_CATEGORY: Record<TemplateCategory, ExpressTemplate[]> =
 export function getTemplate(id: string): ExpressTemplate | undefined {
   return [...WRITING_TEMPLATES, ...PHRASE_TEMPLATES].find((t) => t.id === id)
 }
+
+export function paragraphFavId(templateId: string, index: number): string {
+  return `para:${templateId}:${index}`
+}
+
+export function phraseFavId(templateId: string, no: number): string {
+  return `phrase:${templateId}:${no}`
+}
+
+export function contentFavIds(t: ExpressTemplate): string[] {
+  if (t.phrases?.length) return t.phrases.map((p) => phraseFavId(t.id, p.no))
+  return t.paragraphs.map((_, i) => paragraphFavId(t.id, i))
+}
