@@ -7,6 +7,9 @@ import App from './App.vue'
 import router from './router'
 import './style.css'
 import { warmupWebVoices } from '@/utils/audio'
+import { initTracking } from '@/utils/tracking/tracking-init'
+
+initTracking()
 
 const app = createApp(App)
 app.use(createPinia())

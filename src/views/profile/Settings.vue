@@ -29,6 +29,10 @@ onMounted(() => {
       </span>
       <span class="menu-now">{{ update.localVer }}</span>
     </button>
+    <button class="btn ghost block menu-entry" style="margin-top: 10px" type="button" @click="router.push('/profile/docs')">
+      <span>导入文档</span>
+      <span class="menu-now">Word / PDF / Excel</span>
+    </button>
     <button class="btn ghost block menu-entry" style="margin-top: 10px" type="button" @click="router.push('/profile/share')">
       <span>推荐给朋友</span>
       <span class="menu-now">微信 / QQ</span>

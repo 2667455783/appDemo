@@ -27,6 +27,12 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus,
+:focus-visible {
+  outline: none;
 }
 
 html,
@@ -49,6 +55,11 @@ input,
 textarea,
 select {
   font-family: inherit;
+  outline: none;
+}
+
+button::-moz-focus-inner {
+  border: 0;
 }
 
 a {

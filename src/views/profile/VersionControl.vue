@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import { useAppUpdateStore } from '@/stores/appUpdate'
 import { getManifestUrl, openApkDownload, setManifestUrl } from '@/services/appUpdate'
+import { reportLog } from '@/utils/tracking/tracking-report'
 
 const router = useRouter()
 const update = useAppUpdateStore()
@@ -19,6 +20,11 @@ onMounted(async () => {
 function saveManifestUrl() {
   setManifestUrl(manifestInput.value)
   update.resetAfterUrlChange()
+}
+
+function onCheckUpdate() {
+  reportLog('click_version_upgrade')
+  void update.manualCheck()
 }
 
 function onDownload() {
@@ -42,7 +48,7 @@ function onDownload() {
           <p class="muted">当前版本</p>
           <p class="ver">{{ update.localVer }} <span class="code">(#{{ update.localCode }})</span></p>
         </div>
-        <button class="btn sm primary check-btn" type="button" :disabled="update.checking" @click="update.manualCheck()">
+        <button class="btn sm primary check-btn" type="button" :disabled="update.checking" @click="onCheckUpdate">
           {{ update.checking ? '检查中…' : '检查更新' }}
           <span v-if="update.hasUpdate" class="badge-dot" aria-label="有新版本" />
         </button>

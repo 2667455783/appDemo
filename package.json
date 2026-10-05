@@ -28,9 +28,12 @@
     "@capacitor/local-notifications": "^6.0.0",
     "@capacitor/status-bar": "^6.0.0",
     "@xenova/transformers": "^2.17.2",
+    "mammoth": "^1.12.2",
+    "pdfjs-dist": "^4.8.69",
     "pinia": "^4.0.3",
     "vue": "^3.5.41",
-    "vue-router": "^4.6.4"
+    "vue-router": "^4.6.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

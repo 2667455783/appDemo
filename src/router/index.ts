@@ -47,6 +47,7 @@ const router = createRouter({
     { path: '/profile/theme', component: () => import('@/views/profile/ThemeManage.vue'), meta: { tab: false } },
     { path: '/profile/appearance', redirect: '/profile/theme' },
     { path: '/profile/version', component: () => import('@/views/profile/VersionControl.vue'), meta: { tab: false } },
+    { path: '/profile/docs', component: () => import('@/views/profile/ImportDocs.vue'), meta: { tab: false } },
     { path: '/profile/share', component: () => import('@/views/profile/ShareFriends.vue'), meta: { tab: false } },
     { path: '/sprint', component: () => import('@/views/sprint/Sprint.vue'), meta: { tab: false } },
     { path: '/profile', component: () => import('@/views/Profile.vue'), meta: { tab: true } },

@@ -6,3 +6,10 @@ declare module 'vue-router' {
     public?: boolean
   }
 }
+
+declare global {
+  interface Window {
+    _hmt?: unknown[][]
+  }
+}
+
