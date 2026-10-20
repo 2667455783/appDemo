@@ -1,29 +1,50 @@
+<script lang="ts">
+import type { ExamLevel } from '@/types'
+
+/** 用法页返回时恢复：词表、字母、搜索和列表滚动位置 */
+const dictBrowse = {
+  level: 'cet4' as ExamLevel,
+  letter: 'A',
+  q: '',
+  scrollTop: 0,
+}
+</script>
+
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import SpeakWordButton from '@/components/SpeakWordButton.vue'
 import {
   filterVocabByLevel,
-  getAllVocab,
+  getDictionaryVocab,
   groupVocabByLetter,
 } from '@/data/vocab'
-import type { ExamLevel, VocabWord } from '@/types'
+import type { VocabWord } from '@/types'
+
+defineOptions({ name: 'VocabDictionary' })
 
 const router = useRouter()
 const loading = ref(true)
 const all = ref<VocabWord[]>([])
-const level = ref<ExamLevel>('cet4')
-const letter = ref('A')
-const q = ref('')
+const level = ref<ExamLevel>(dictBrowse.level)
+const letter = ref(dictBrowse.letter)
+const q = ref(dictBrowse.q)
 const pageEl = ref<HTMLElement | null>(null)
+let restoringScroll = false
+let freezeScroll = false
 
 onMounted(async () => {
   try {
-    all.value = await getAllVocab()
+    all.value = await getDictionaryVocab()
   } finally {
     loading.value = false
   }
+  await restoreScroll()
+})
+
+onActivated(() => {
+  if (!loading.value) void restoreScroll()
 })
 
 const leveled = computed(() => filterVocabByLevel(all.value, level.value))
@@ -49,11 +70,20 @@ const filtered = computed(() => {
   return g?.words ?? []
 })
 
-watch(level, () => {
+watch(level, (value) => {
+  dictBrowse.level = value
   q.value = ''
   if (!letters.value.includes(letter.value)) {
     letter.value = letters.value[0] || 'A'
   }
+})
+
+watch(letter, (value) => {
+  dictBrowse.letter = value
+})
+
+watch(q, (value) => {
+  dictBrowse.q = value
 })
 
 watch(letters, (ls) => {
@@ -67,8 +97,36 @@ function usageOf(w: VocabWord): string {
   return ''
 }
 
+function rememberScroll() {
+  if (freezeScroll || restoringScroll || loading.value || !pageEl.value) return
+  dictBrowse.scrollTop = pageEl.value.scrollTop
+}
+
 function scrollToTop() {
+  dictBrowse.scrollTop = 0
   if (pageEl.value) pageEl.value.scrollTop = 0
+}
+
+async function restoreScroll() {
+  const top = dictBrowse.scrollTop
+  if (top <= 0) {
+    freezeScroll = false
+    return
+  }
+  restoringScroll = true
+  const apply = () => {
+    if (pageEl.value) pageEl.value.scrollTop = top
+  }
+  await nextTick()
+  apply()
+  requestAnimationFrame(() => {
+    apply()
+    requestAnimationFrame(() => {
+      apply()
+      restoringScroll = false
+      freezeScroll = false
+    })
+  })
 }
 
 function setLevel(lv: ExamLevel) {
@@ -81,12 +139,22 @@ function pickLetter(L: string) {
   letter.value = L
   scrollToTop()
 }
+
+function openWord(w: VocabWord) {
+  rememberScroll()
+  router.push(`/train/dictionary/${w.id}`)
+}
+
+onBeforeRouteLeave(() => {
+  rememberScroll()
+  freezeScroll = true
+})
 </script>
 
 <template>
-  <div ref="pageEl" class="page full dict-page">
+  <div ref="pageEl" class="page full dict-page" @scroll.passive="rememberScroll">
     <div class="dict-top">
-      <PageHeader title="四六级词典" subtle="注释 · 用法 · 按 A–Z 浏览" @back="router.back()" />
+      <PageHeader title="四六级词典" subtle="点击单词，查看句型与用法" @back="router.back()" />
     </div>
 
     <div class="dict-sticky">
@@ -118,7 +186,14 @@ function pickLetter(L: string) {
 
     <div v-if="!loading" class="dict-list">
         <p v-if="!filtered.length" class="page-sub empty">没有匹配的词。</p>
-        <article v-for="w in filtered" :key="w.id" class="card word">
+        <article
+          v-for="w in filtered"
+          :key="w.id"
+          class="card word"
+          tabindex="0"
+          @click="openWord(w)"
+          @keydown.enter.prevent="openWord(w)"
+        >
           <div class="row space top">
             <div>
               <p class="head">
@@ -136,6 +211,7 @@ function pickLetter(L: string) {
           <p v-if="usageOf(w)" class="usage">
             <span class="u-label">用法</span>{{ usageOf(w) }}
           </p>
+          <p class="more">查看用法 <span aria-hidden="true">›</span></p>
         </article>
       </div>
   </div>
@@ -196,6 +272,16 @@ function pickLetter(L: string) {
 .word {
   margin-top: 10px;
   text-align: left;
+  cursor: pointer;
+}
+.word:active {
+  border-color: var(--forest);
+}
+.more {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--forest);
 }
 .aside {
   display: flex;

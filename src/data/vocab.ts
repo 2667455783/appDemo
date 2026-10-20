@@ -1,4 +1,5 @@
 import type { ExamLevel, VocabWord } from '@/types'
+import { USAGE_HEADWORDS } from '@/data/vocabUsage'
 
 export const VOCAB_BANK: VocabWord[] = [
   {
@@ -477,6 +478,18 @@ export async function getAllVocab(): Promise<VocabWord[]> {
   const handWords = new Set(VOCAB_BANK.map((w) => w.word.toLowerCase()))
   allCache = [...VOCAB_BANK, ...ecdict.filter((w) => !handWords.has(w.word.toLowerCase()))]
   return allCache
+}
+
+let dictCache: VocabWord[] | null = null
+
+/** 词典浏览：在词库上补入 as / if 等用法词，不进入背词抽题。 */
+export async function getDictionaryVocab(): Promise<VocabWord[]> {
+  if (dictCache) return dictCache
+  const all = await getAllVocab()
+  const seen = new Set(all.map((w) => w.word.toLowerCase()))
+  const extra = USAGE_HEADWORDS.filter((w) => !seen.has(w.word.toLowerCase()))
+  dictCache = extra.length ? [...all, ...extra] : all
+  return dictCache
 }
 
 /** 四级：cet4 + both；六级：cet6 + both */

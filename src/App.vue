@@ -56,7 +56,11 @@ onUnmounted(() => {
 <template>
   <div class="stage">
     <div class="phone">
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <keep-alive include="VocabDictionary">
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
       <TabBar v-if="showTab" />
     </div>
   </div>

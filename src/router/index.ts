@@ -13,6 +13,11 @@ const router = createRouter({
       component: () => import('@/views/vocab/VocabDictionary.vue'),
       meta: { tab: false },
     },
+    {
+      path: '/train/dictionary/:id',
+      component: () => import('@/views/vocab/VocabDetail.vue'),
+      meta: { tab: false },
+    },
     { path: '/train/listening', component: () => import('@/views/listening/ListeningPractice.vue'), meta: { tab: false } },
     { path: '/train/reading', component: () => import('@/views/reading/ReadingHub.vue'), meta: { tab: false } },
     {
