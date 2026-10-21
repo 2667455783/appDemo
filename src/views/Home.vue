@@ -11,9 +11,9 @@ const study = useStudyStore()
 
 const doneCount = computed(() => study.todayTasks.filter((t) => t.done).length)
 const phaseText = computed(() => {
-  if (user.phase === 'final') return '最后 3 天：停新内容，只复盘。'
-  if (user.phase === 'sprint') return '冲刺周：每天压成三件事。'
-  return '按题型巩固，周末再套卷。'
+  if (user.phase === 'final') return '最后 3 天：只过词表与模板，不堆新内容。'
+  if (user.phase === 'sprint') return '冲刺周：每天背词 + 套一套写作模板。'
+  return '单词打卡 + 作文脚手架，稳扎稳打。'
 })
 </script>
 
@@ -47,27 +47,22 @@ const phaseText = computed(() => {
       <span class="tag" :class="task.done ? 'green' : 'ink'">{{ task.done ? '已完成' : '去完成' }}</span>
     </button>
 
-    <p class="section-h">弱项入口</p>
-    <div class="card row space" @click="router.push('/diagnosis')" style="cursor: pointer">
-      <div>
-        <p class="t-title">{{ study.weakest ? study.weakest.label : '先模考一次' }}</p>
-        <p class="page-sub">
-          {{ study.latestReport ? `当前约 ${study.weakest?.value} 分位，点进诊断本补漏` : '还没有报告，去真题模考出第一份雷达' }}
-        </p>
-      </div>
-      <span class="small-link">查看</span>
+    <p class="section-h">快捷入口</p>
+    <div class="grid2">
+      <button class="card mini" type="button" @click="router.push('/vocab')">
+        <p class="t-title">单词</p>
+        <p class="page-sub">背词 · 词典 · 错词本</p>
+      </button>
+      <button class="card mini" type="button" @click="router.push('/writing')">
+        <p class="t-title">写作</p>
+        <p class="page-sub">模板 · 金句 · 套用</p>
+      </button>
     </div>
 
-    <div class="grid2">
-      <button class="card mini" type="button" @click="router.push('/sprint')">
-        <p class="t-title">冲刺清单</p>
-        <p class="page-sub">节奏与考场注意</p>
-      </button>
-      <button class="card mini" type="button" @click="router.push('/exam-review')">
-        <p class="t-title">正考复盘</p>
-        <p class="page-sub">出考场记忆卡</p>
-      </button>
-    </div>
+    <button class="card mini block" style="margin-top: 10px" type="button" @click="router.push('/profile/reminder')">
+      <p class="t-title">学习提醒</p>
+      <p class="page-sub">到点提醒背词，进程关掉也能弹</p>
+    </button>
   </div>
 </template>
 
@@ -100,5 +95,8 @@ const phaseText = computed(() => {
 .t-title {
   font-weight: 700;
   font-size: 15px;
+}
+.block {
+  display: block;
 }
 </style>

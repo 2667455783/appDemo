@@ -8,12 +8,25 @@ export const WRITING_TEMPLATES: ExpressTemplate[] = [
     tag: '对立观点',
     title: '议论文模板 1｜对立观点类',
     summary: 'A 好还是 B 好：双方理由 + 个人立场',
-    paragraphs: [
-      'Nowadays, (the topic) has become a hot discussion. Different people hold different opinions.',
-      'Some people believe that (观点 A). For one thing, (理由 1). For another, (理由 2).',
-      'However, others think that (观点 B) is better. They argue that (理由 1). Besides, (理由 2).',
-      'As far as I am concerned, I prefer (A/B). We should think about the real situation and make a proper choice.',
+    roles: ['开头', '观点 A', '观点 B', '结尾'],
+    slots: [
+      { key: 'topic', label: '话题', hint: '如 online learning' },
+      { key: 'viewA', label: '观点 A', hint: '一方主张' },
+      { key: 'reasonA1', label: '理由 A1', hint: '支持观点 A' },
+      { key: 'reasonA2', label: '理由 A2', hint: '支持观点 A' },
+      { key: 'viewB', label: '观点 B', hint: '另一方主张' },
+      { key: 'reasonB1', label: '理由 B1', hint: '支持观点 B' },
+      { key: 'reasonB2', label: '理由 B2', hint: '支持观点 B' },
+      { key: 'stance', label: '你的立场', hint: 'A 或 B，或折中' },
     ],
+    paragraphs: [
+      'Nowadays, {{topic}} has become a hot discussion. Different people hold different opinions.',
+      'Some people believe that {{viewA}}. For one thing, {{reasonA1}}. For another, {{reasonA2}}.',
+      'However, others think that {{viewB}} is better. They argue that {{reasonB1}}. Besides, {{reasonB2}}.',
+      'As far as I am concerned, I prefer {{stance}}. We should think about the real situation and make a proper choice.',
+    ],
+    sampleEssay:
+      'Nowadays, online learning has become a hot discussion. Different people hold different opinions. Some people believe that studying online is more flexible. For one thing, students can arrange their own timetable. For another, recorded lessons can be reviewed many times. However, others think that classroom learning is better. They argue that face-to-face talk keeps students focused. Besides, teachers can give instant feedback. As far as I am concerned, I prefer a mix of both. We should think about the real situation and make a proper choice.',
   },
   {
     id: 'tpl-arg-2',
@@ -21,10 +34,18 @@ export const WRITING_TEMPLATES: ExpressTemplate[] = [
     tag: '利弊分析',
     title: '议论文模板 2｜利弊分析类',
     summary: '事物优缺点：优点两段 + 缺点两段 + 收束',
+    roles: ['开头', '优点', '缺点', '结尾'],
+    slots: [
+      { key: 'topic', label: '主题', hint: '如 short-form videos' },
+      { key: 'pro1', label: '优点 1', hint: '' },
+      { key: 'pro2', label: '优点 2', hint: '' },
+      { key: 'con1', label: '缺点 1', hint: '' },
+      { key: 'con2', label: '缺点 2', hint: '' },
+    ],
     paragraphs: [
-      'Nowadays, many people like (主题). It plays an important part in our daily life.',
-      'Generally speaking, it has two main advantages. Firstly, (优点 1). Secondly, (优点 2).',
-      'But every coin has two sides. It also brings some problems. To begin with, (缺点 1). In addition, (缺点 2).',
+      'Nowadays, many people like {{topic}}. It plays an important part in our daily life.',
+      'Generally speaking, it has two main advantages. Firstly, {{pro1}}. Secondly, {{pro2}}.',
+      'But every coin has two sides. It also brings some problems. To begin with, {{con1}}. In addition, {{con2}}.',
       'In my opinion, we should make good use of its good points and avoid its bad ones.',
     ],
   },
@@ -34,10 +55,18 @@ export const WRITING_TEMPLATES: ExpressTemplate[] = [
     tag: '现象‑问题‑解决',
     title: '议论文模板 3｜现象‑问题‑解决类',
     summary: '社会现象：问题两段 + 建议两段 + 号召',
+    roles: ['开头', '问题', '建议', '结尾'],
+    slots: [
+      { key: 'phenomenon', label: '现象', hint: '如 food waste on campus' },
+      { key: 'problem1', label: '问题 1', hint: '' },
+      { key: 'problem2', label: '问题 2', hint: '' },
+      { key: 'advice1', label: '建议 1', hint: '' },
+      { key: 'advice2', label: '建议 2', hint: '' },
+    ],
     paragraphs: [
-      'Nowadays, (现象) is more and more common in our life, which causes wide concern.',
-      'It brings us some trouble. One problem is that (问题 1). Another problem is that (问题 2).',
-      'There are some ways to change this situation. First of all, (建议 1). What’s more, (建议 2).',
+      'Nowadays, {{phenomenon}} is more and more common in our life, which causes wide concern.',
+      'It brings us some trouble. One problem is that {{problem1}}. Another problem is that {{problem2}}.',
+      'There are some ways to change this situation. First of all, {{advice1}}. What’s more, {{advice2}}.',
       'In short, everyone should take action. Only in this way can we have a better result.',
     ],
   },
@@ -47,10 +76,18 @@ export const WRITING_TEMPLATES: ExpressTemplate[] = [
     tag: '建议信',
     title: '书信模板 1｜建议信',
     summary: '给朋友提建议：来意 + 三条建议 + 祝愿',
+    roles: ['称谓', '来意', '建议', '祝愿', '落款'],
+    slots: [
+      { key: 'name', label: '收信人', hint: '如 Tom' },
+      { key: 'topic', label: '主题', hint: '对方咨询的事' },
+      { key: 'tip1', label: '建议一', hint: '' },
+      { key: 'tip2', label: '建议二', hint: '' },
+      { key: 'tip3', label: '建议三', hint: '' },
+    ],
     paragraphs: [
-      'Dear (Tom),',
-      'I’m glad to receive your letter. You asked me for some advice on (主题). Here are my suggestions.',
-      'First of all, it is a good idea to (建议一). Besides, you can (建议二). What’s more, it helps if you (建议三).',
+      'Dear {{name}},',
+      'I’m glad to receive your letter. You asked me for some advice on {{topic}}. Here are my suggestions.',
+      'First of all, it is a good idea to {{tip1}}. Besides, you can {{tip2}}. What’s more, it helps if you {{tip3}}.',
       'I hope my suggestions will be helpful to you. Looking forward to your reply.',
       'Yours sincerely,\nLi Hua',
     ],
@@ -61,10 +98,16 @@ export const WRITING_TEMPLATES: ExpressTemplate[] = [
     tag: '感谢信',
     title: '书信模板 2｜感谢信',
     summary: '感谢别人帮助：事由 + 具体帮助 + 祝福',
+    roles: ['称谓', '感谢', '具体帮助', '祝福', '落款'],
+    slots: [
+      { key: 'name', label: '收信人', hint: '如 Tom' },
+      { key: 'reason', label: '感谢事由', hint: '' },
+      { key: 'event', label: '困难场景', hint: '你当时遇到的事' },
+    ],
     paragraphs: [
-      'Dear (Tom),',
-      'I am writing to express my sincere thanks to you for (感谢事由).',
-      'When I met difficulties in (事情), you gave me lots of help. You spent time giving me useful advice. Thanks to your support, I made great progress.',
+      'Dear {{name}},',
+      'I am writing to express my sincere thanks to you for {{reason}}.',
+      'When I met difficulties in {{event}}, you gave me lots of help. You spent time giving me useful advice. Thanks to your support, I made great progress.',
       'I really appreciate your kindness. I hope I can help you one day. Wish you all the best.',
       'Yours sincerely,\nLi Hua',
     ],
@@ -75,15 +118,36 @@ export const WRITING_TEMPLATES: ExpressTemplate[] = [
     tag: '邀请信',
     title: '书信模板 3｜邀请信',
     summary: '邀请参加活动：时间地点 + 内容 + 期待',
+    roles: ['称谓', '邀请', '活动内容', '期待', '落款'],
+    slots: [
+      { key: 'name', label: '收信人', hint: '如 Tom' },
+      { key: 'event', label: '活动名', hint: '' },
+      { key: 'place', label: '地点', hint: '' },
+      { key: 'time', label: '时间', hint: '' },
+      { key: 'content', label: '活动内容', hint: '' },
+    ],
     paragraphs: [
-      'Dear (Tom),',
-      'I’m writing to invite you to take part in (活动). It will be held at (地点) on (时间).',
-      'During the activity, we will (活动内容). It will be a meaningful and happy time for us.',
+      'Dear {{name}},',
+      'I’m writing to invite you to take part in {{event}}. It will be held at {{place}} on {{time}}.',
+      'During the activity, we will {{content}}. It will be a meaningful and happy time for us.',
       'I would be very happy if you could come. Looking forward to your coming.',
       'Yours sincerely,\nLi Hua',
     ],
   },
 ]
+
+/** 把骨架段落中的 {{key}} 换成用户填写内容 */
+export function fillTemplateParagraphs(
+  paragraphs: string[],
+  values: Record<string, string>,
+): string[] {
+  return paragraphs.map((p) =>
+    p.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+      const v = values[key]?.trim()
+      return v || `(${key})`
+    }),
+  )
+}
 
 /** 必背短句：5 类 × 20 条 */
 export const PHRASE_TEMPLATES: ExpressTemplate[] = [

@@ -99,7 +99,7 @@ function shortTitle(title: string) {
 
     <p v-if="linkedTemplate" class="page-sub tpl-link">
       套用模板：{{ linkedTemplate.title }}
-      <button class="btn sm ghost" type="button" @click="router.push('/train/templates')">去模板管理</button>
+      <button class="btn sm ghost" type="button" @click="router.push('/writing/fill')">去套模板</button>
     </p>
 
     <template v-if="mode === 'write'">

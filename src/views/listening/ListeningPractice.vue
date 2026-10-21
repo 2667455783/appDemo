@@ -144,7 +144,7 @@ onBeforeUnmount(() => stopSpeak())
       <button class="btn primary block" type="button" :disabled="playing" @click="playAll">
         {{ playing ? '播放中…' : '播放全文（演示语音）' }}
       </button>
-      <p class="muted">本演示用系统语音朗读样稿。真题音频上线后会锁进度条。</p>
+      <p class="muted">本页为扩展练习：系统语音朗读原创样稿，非考试原声。</p>
       <button class="btn ghost block" type="button" @click="toQuiz">去答题</button>
     </div>
 

@@ -109,11 +109,21 @@ function reset() {
 
     <div class="card" style="margin-top: 16px">
       <p class="muted">学习数据</p>
-      <p class="page-sub">模考 {{ study.reports.length }} 次 · 错题待消灭 {{ study.openErrors.length }} · 补漏任务 {{ study.gapPlan.length }}</p>
+      <p class="page-sub">
+        掌握词汇 {{ mastered }} · 错词 {{ study.wrongWordIds.length }} · 模板收藏见写作页
+      </p>
     </div>
 
-    <button class="btn ghost block" style="margin-top: 16px" type="button" @click="router.push('/exam-review')">正考成绩校准</button>
-    <button class="btn danger block" style="margin-top: 10px" type="button" @click="reset">重置演示数据</button>
+    <button class="btn ghost block" style="margin-top: 16px" type="button" @click="router.push('/profile/reminder')">
+      学习提醒
+    </button>
+    <button class="btn ghost block" style="margin-top: 10px" type="button" @click="router.push('/translate')">
+      翻译工具
+    </button>
+    <button class="btn ghost block" style="margin-top: 10px" type="button" @click="router.push('/profile/about')">
+      关于与声明
+    </button>
+    <button class="btn danger block" style="margin-top: 10px" type="button" @click="reset">重置本地数据</button>
   </div>
 </template>
 

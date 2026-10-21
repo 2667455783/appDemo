@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import { detectLang, translateAuto, translateText, TRANSLATE_MAX_CHARS, type Lang } from '@/services/translate'
 import { canSpeak, speakText, stopSpeak } from '@/utils/audio'
+
+const router = useRouter()
 
 const input = ref('')
 const output = ref('')
@@ -243,7 +246,7 @@ onUnmounted(() => {
 
 <template>
   <div class="page">
-    <PageHeader title="翻译" subtle="中英互译 · 超长文本自动分段" :back="false" />
+    <PageHeader title="翻译" subtle="中英互译 · 超长文本自动分段" @back="router.back()" />
 
     <div class="card">
       <div class="langbar">

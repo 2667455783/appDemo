@@ -34,10 +34,10 @@ async function load() {
   flipped.value = false
   remembered.value = 0
   forgot.value = 0
-  const dueIds = study.dueWords.map((w) => w.id)
+  const dueIds = study.dueWordIds
   const [items, n] = await Promise.all([
     fetchVocabDue({ level: user.level, dueIds, count: 8 }),
-    total.value ? Promise.resolve(0) : vocabCount(),
+    total.value ? Promise.resolve(0) : vocabCount(user.level),
   ])
   if (n) total.value = n
   queue.value = items
@@ -63,10 +63,10 @@ function grade(ok: boolean) {
 
 <template>
   <div class="page full">
-    <PageHeader title="词汇" :subtle="total ? `题库 ${total} 词 · 间隔 1 / 3 / 7 天` : '从题库拉取，间隔 1 / 3 / 7 天'" @back="router.back()" />
+    <PageHeader title="背词" :subtle="total ? `词书约 ${total} 词 · 间隔重复` : '按等级抽词，间隔重复'" @back="router.back()" />
 
     <div v-if="loading" class="card">
-      <p>正在从题库拉取…</p>
+      <p>正在准备词卡…</p>
     </div>
 
     <div v-else-if="!current || done" class="card">

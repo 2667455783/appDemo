@@ -79,6 +79,16 @@ export const useStudyStore = defineStore('study', () => {
 
   const visibleWords = computed(() => VOCAB_BANK.filter((w) => wordVisible(w, user().level)))
 
+  /** 已学过且到期的词 id（含词典扩容词）；新手尚未建卡时用精背 must 词兜底 */
+  const dueWordIds = computed(() => {
+    const today = todayISO()
+    const fromCards = Object.entries(vocab.value)
+      .filter(([, c]) => (c.due || '') <= today)
+      .map(([id]) => id)
+    if (fromCards.length) return fromCards
+    return visibleWords.value.filter((w) => w.freq === 'must').map((w) => w.id)
+  })
+
   const dueWords = computed(() => {
     const today = todayISO()
     return visibleWords.value.filter((w) => {
@@ -86,6 +96,14 @@ export const useStudyStore = defineStore('study', () => {
       return card.due <= today
     })
   })
+
+  /** 答错过的词，供错词本 */
+  const wrongWordIds = computed(() =>
+    Object.entries(vocab.value)
+      .filter(([, c]) => (c.wrong ?? 0) > 0)
+      .sort((a, b) => (b[1].wrong ?? 0) - (a[1].wrong ?? 0))
+      .map(([id]) => id),
+  )
 
   const openErrors = computed(() => errors.value.filter((e) => e.status === 'open'))
 
@@ -115,78 +133,65 @@ export const useStudyStore = defineStore('study', () => {
 
   const todayTasks = computed<TodayTask[]>(() => {
     const phase = user().phase
-    const due = dueWords.value.length
-    const gapToday = gapPlan.value.filter((g) => g.dayOffset === 0 && !g.done)
+    const due = dueWordIds.value.length
+    const wrong = wrongWordIds.value.length
     const done = new Set(doneTaskIds.value)
 
     if (phase === 'final') {
       return [
         {
-          id: 'final-error',
-          title: '消灭错题',
-          desc: openErrors.value.length ? `${openErrors.value.length} 道待重做` : '错题本已清空',
-          minutes: 20,
-          route: '/diagnosis/errors',
-          done: done.has('final-error'),
-        },
-        {
           id: 'final-vocab',
-          title: '高频必考词',
-          desc: `${due || visibleWords.value.filter((w) => w.freq === 'must').length} 个`,
+          title: '高频词速过',
+          desc: due ? `${due} 词待复习` : '巩固已学词',
           minutes: 12,
           route: '/train/vocab',
           done: done.has('final-vocab'),
         },
         {
-          id: 'final-listen',
-          title: '再听一套听力',
-          desc: '只过音频，不刷新题',
-          minutes: 15,
-          route: '/train/listening',
-          done: done.has('final-listen'),
+          id: 'final-wrong',
+          title: '错词本清扫',
+          desc: wrong ? `${wrong} 个易错词` : '错词本已清空',
+          minutes: 10,
+          route: '/vocab/wrong',
+          done: done.has('final-wrong'),
+        },
+        {
+          id: 'final-write',
+          title: '套一套写作模板',
+          desc: '考前只练结构，不写新长文',
+          minutes: 12,
+          route: '/writing/fill',
+          done: done.has('final-write'),
         },
       ]
     }
 
-    const tasks: TodayTask[] = [
+    return [
       {
         id: 'vocab',
-        title: '到期词汇',
-        desc: due ? `${due} 词待复习` : '今日词表已清',
+        title: '今日背词',
+        desc: due ? `${due} 词待复习` : '开启新一组',
         minutes: 10,
         route: '/train/vocab',
         done: done.has('vocab'),
       },
       {
-        id: 'listen',
-        title: phase === 'sprint' ? '听力节奏' : '听力精听',
-        desc: '预读选项 + 逐句听写',
-        minutes: 15,
-        route: '/train/listening',
-        done: done.has('listen'),
+        id: 'writing',
+        title: phase === 'sprint' ? '冲刺：套模板成文' : '套模板练习',
+        desc: '填空生成骨架成稿',
+        minutes: 12,
+        route: '/writing/fill',
+        done: done.has('writing'),
+      },
+      {
+        id: 'phrases',
+        title: wrong ? '复习错词' : '背几条金句',
+        desc: wrong ? `${wrong} 个错词优先` : '开头 / 结尾万能句',
+        minutes: 8,
+        route: wrong ? '/vocab/wrong' : '/train/templates',
+        done: done.has('phrases'),
       },
     ]
-
-    if (gapToday[0]) {
-      tasks.push({
-        id: 'gap',
-        title: gapToday[0].title,
-        desc: gapToday[0].desc,
-        minutes: gapToday[0].minutes,
-        route: gapToday[0].route,
-        done: done.has('gap'),
-      })
-    } else {
-      tasks.push({
-        id: 'read',
-        title: phase === 'sprint' ? '一篇仔细阅读' : '阅读理解一篇',
-        desc: '定位词 + 干扰项拆解',
-        minutes: 12,
-        route: '/train/reading/careful',
-        done: done.has('read'),
-      })
-    }
-    return tasks
   })
 
   function ensureCard(id: string): VocabCardState {
@@ -371,6 +376,8 @@ export const useStudyStore = defineStore('study', () => {
     gapGeneratedAt,
     visibleWords,
     dueWords,
+    dueWordIds,
+    wrongWordIds,
     openErrors,
     latestReport,
     radar,

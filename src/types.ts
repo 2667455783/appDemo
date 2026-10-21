@@ -130,6 +130,13 @@ export type PhraseLine = {
   zh: string
 }
 
+/** 范文提炼模板时的填空槽 */
+export type TemplateSlot = {
+  key: string
+  label: string
+  hint: string
+}
+
 export type ExpressTemplate = {
   id: string
   category: TemplateCategory
@@ -139,6 +146,12 @@ export type ExpressTemplate = {
   summary: string
   /** 作文模板：带占位符的骨架句 */
   paragraphs: string[]
+  /** 段落角色，与 paragraphs 一一对应，如 开头 / 论点 / 结尾 */
+  roles?: string[]
+  /** 套模板练习时的填空项 */
+  slots?: TemplateSlot[]
+  /** 原创范文全文（非真题） */
+  sampleEssay?: string
   /** 必背短句：英汉对照 */
   phrases?: PhraseLine[]
 }

@@ -36,8 +36,8 @@ function submit() {
 <template>
   <div class="page full">
     <p class="brand">知卷</p>
-    <h1 class="page-title">把卷面拆开练，<br />考后按弱项补。</h1>
-    <p class="page-sub">先定等级和考试日，后面的词表、真题和诊断都会跟着变。</p>
+    <h1 class="page-title">单词打卡，<br />作文有模板。</h1>
+    <p class="page-sub">先定等级和考试日，词书与今日任务会跟着变。本应用不含考试真题。</p>
 
     <div class="stack" style="margin-top: 22px">
       <div class="field">
@@ -72,7 +72,7 @@ function submit() {
         <input v-model="form.examDate" type="date" />
       </div>
       <button class="btn primary block" type="button" @click="submit">进入今日任务</button>
-      <p class="muted" style="text-align: center">摸底会在第一次模考后自动生成能力雷达，不必现在做长卷。</p>
+      <p class="muted" style="text-align: center">每天背词 + 套一套写作模板即可，纸质真题请自行购买正版。</p>
     </div>
   </div>
 </template>

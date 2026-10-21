@@ -52,6 +52,10 @@ onMounted(() => {
         {{ theme.current.name }} · {{ theme.appearanceLabel }}
       </span>
     </button>
+    <button class="btn ghost block menu-entry" style="margin-top: 10px" type="button" @click="router.push('/profile/about')">
+      <span>关于与声明</span>
+      <span class="menu-now">合规说明</span>
+    </button>
   </div>
 </template>
 

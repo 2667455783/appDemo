@@ -1,20 +1,29 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import ExpressTemplateItem from '@/components/ExpressTemplateItem.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { TEMPLATE_BY_CATEGORY, contentFavIds } from '@/data/templates'
+import { useStudyStore } from '@/stores/study'
 import { useTemplateFavStore } from '@/stores/templateFav'
 import { TEMPLATE_CATEGORY_LABEL, type TemplateCategory } from '@/types'
 
 const FAV_GROUPS: TemplateCategory[] = ['writing', 'phrases']
 
+const route = useRoute()
 const router = useRouter()
+const study = useStudyStore()
 const fav = useTemplateFavStore()
 const category = ref<TemplateCategory>('writing')
 const openId = ref<string | null>(null)
 const onlyFav = ref(false)
 const openFavCat = ref<TemplateCategory | null>('writing')
+
+onMounted(() => {
+  const tab = String(route.query.tab || '')
+  if (tab === 'phrases') category.value = 'phrases'
+  study.completeTask('phrases')
+})
 
 const allInCategory = computed(() => TEMPLATE_BY_CATEGORY[category.value])
 
@@ -62,7 +71,7 @@ function enterFav() {
 
 <template>
   <div class="page full">
-    <PageHeader title="模板管理" subtle="作文模板 · 必背短句" @back="router.back()" />
+    <PageHeader title="模板与金句" subtle="作文骨架 · 必背短句（原创示例）" @back="router.back()" />
 
     <div class="chips">
       <button
