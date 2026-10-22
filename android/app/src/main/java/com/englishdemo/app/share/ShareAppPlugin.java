@@ -27,7 +27,7 @@ import java.io.OutputStream;
 @CapacitorPlugin(name = "ShareApp")
 public class ShareAppPlugin extends Plugin {
 
-    private static final String DEFAULT_APK_NAME = "英语备考.apk";
+    private static final String DEFAULT_APK_NAME = "学习宝典.apk";
 
     /** 直接分享当前已安装的本 App 安装包 */
     @PluginMethod

@@ -1,6 +1,6 @@
 // 列出 APK 内的关键条目，确认模型与原生库已打包
 const { spawnSync } = require('child_process')
-const apk = 'C:\\Users\\PC\\Desktop\\英语备考-debug.apk'
+const apk = 'C:\\Users\\PC\\Desktop\\学习宝典-debug.apk'
 const r = spawnSync('tar', ['-tf', apk], { encoding: 'utf8', maxBuffer: 200 * 1024 * 1024 })
 const lines = r.stdout.split(/\r?\n/).filter(Boolean)
 console.log('APK total entries:', lines.length)

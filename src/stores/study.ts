@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { VOCAB_BANK } from '@/data/vocab'
+import { getDomain } from '@/domains/registry'
+import type { DomainId } from '@/domains/types'
 import { useUserStore } from '@/stores/user'
 import type {
   ErrorCause,
@@ -39,8 +41,34 @@ const empty: StudyState = {
   radarBoost: {},
 }
 
-function persist(state: StudyState) {
-  saveState('study', state)
+function storageKey(domainId: DomainId) {
+  return `study:${domainId}`
+}
+
+/** 将旧版全局 study 迁移到 study:english，只做一次 */
+function migrateLegacyEnglish() {
+  try {
+    const prefix = 'zhijuan:'
+    const nextKey = prefix + storageKey('english')
+    if (localStorage.getItem(nextKey)) return
+    const legacy = localStorage.getItem(prefix + 'study')
+    if (!legacy) return
+    localStorage.setItem(nextKey, legacy)
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadDomainStudy(domainId: DomainId): StudyState {
+  if (domainId === 'english') migrateLegacyEnglish()
+  const saved = loadState<StudyState>(storageKey(domainId), empty)
+  const today = todayISO()
+  return {
+    ...empty,
+    ...saved,
+    doneTaskIds: saved.doneTaskDate === today ? saved.doneTaskIds : [],
+    doneTaskDate: saved.doneTaskDate === today ? saved.doneTaskDate : today,
+  }
 }
 
 function wordVisible(word: VocabWord, level: ExamLevel): boolean {
@@ -48,15 +76,18 @@ function wordVisible(word: VocabWord, level: ExamLevel): boolean {
 }
 
 export const useStudyStore = defineStore('study', () => {
-  const saved = loadState<StudyState>('study', empty)
-  const vocab = ref<Record<string, VocabCardState>>(saved.vocab)
-  const errors = ref<ErrorItem[]>(saved.errors)
-  const reports = ref<MockReport[]>(saved.reports)
-  const gapPlan = ref<GapTask[]>(saved.gapPlan)
-  const gapGeneratedAt = ref(saved.gapGeneratedAt)
-  const doneTaskIds = ref<string[]>(saved.doneTaskDate === todayISO() ? saved.doneTaskIds : [])
-  const doneTaskDate = ref(saved.doneTaskDate === todayISO() ? saved.doneTaskDate : todayISO())
-  const radarBoost = ref<Record<string, number>>(saved.radarBoost)
+  const userStore = useUserStore()
+  let boundDomain = userStore.activeDomainId
+
+  const initial = loadDomainStudy(boundDomain)
+  const vocab = ref<Record<string, VocabCardState>>(initial.vocab)
+  const errors = ref<ErrorItem[]>(initial.errors)
+  const reports = ref<MockReport[]>(initial.reports)
+  const gapPlan = ref<GapTask[]>(initial.gapPlan)
+  const gapGeneratedAt = ref(initial.gapGeneratedAt)
+  const doneTaskIds = ref<string[]>(initial.doneTaskIds)
+  const doneTaskDate = ref(initial.doneTaskDate)
+  const radarBoost = ref<Record<string, number>>(initial.radarBoost)
 
   function snapshot(): StudyState {
     return {
@@ -72,14 +103,39 @@ export const useStudyStore = defineStore('study', () => {
   }
 
   function flush() {
-    persist(snapshot())
+    saveState(storageKey(boundDomain), snapshot())
   }
 
-  const user = () => useUserStore()
+  function applyState(s: StudyState) {
+    vocab.value = s.vocab
+    errors.value = s.errors
+    reports.value = s.reports
+    gapPlan.value = s.gapPlan
+    gapGeneratedAt.value = s.gapGeneratedAt
+    doneTaskIds.value = s.doneTaskIds
+    doneTaskDate.value = s.doneTaskDate
+    radarBoost.value = s.radarBoost
+  }
 
-  const visibleWords = computed(() => VOCAB_BANK.filter((w) => wordVisible(w, user().level)))
+  function switchDomain(next: DomainId) {
+    if (next === boundDomain) return
+    flush()
+    boundDomain = next
+    applyState(loadDomainStudy(next))
+  }
 
-  /** 已学过且到期的词 id（含词典扩容词）；新手尚未建卡时用精背 must 词兜底 */
+  watch(
+    () => userStore.activeDomainId,
+    (id) => switchDomain(id),
+  )
+
+  const user = () => userStore
+
+  const visibleWords = computed(() => {
+    if (boundDomain !== 'english') return [] as VocabWord[]
+    return VOCAB_BANK.filter((w) => wordVisible(w, user().level))
+  })
+
   const dueWordIds = computed(() => {
     const today = todayISO()
     const fromCards = Object.entries(vocab.value)
@@ -97,7 +153,6 @@ export const useStudyStore = defineStore('study', () => {
     })
   })
 
-  /** 答错过的词，供错词本 */
   const wrongWordIds = computed(() =>
     Object.entries(vocab.value)
       .filter(([, c]) => (c.wrong ?? 0) > 0)
@@ -110,6 +165,7 @@ export const useStudyStore = defineStore('study', () => {
   const latestReport = computed(() => reports.value[0] ?? null)
 
   const radar = computed<RadarAxis[]>(() => {
+    if (boundDomain !== 'english') return []
     const r = latestReport.value
     const listen = r ? r.sections.find((s) => s.key === 'listening') : null
     const read = r ? r.sections.find((s) => s.key === 'reading') : null
@@ -132,66 +188,13 @@ export const useStudyStore = defineStore('study', () => {
   })
 
   const todayTasks = computed<TodayTask[]>(() => {
-    const phase = user().phase
-    const due = dueWordIds.value.length
-    const wrong = wrongWordIds.value.length
-    const done = new Set(doneTaskIds.value)
-
-    if (phase === 'final') {
-      return [
-        {
-          id: 'final-vocab',
-          title: '高频词速过',
-          desc: due ? `${due} 词待复习` : '巩固已学词',
-          minutes: 12,
-          route: '/train/vocab',
-          done: done.has('final-vocab'),
-        },
-        {
-          id: 'final-wrong',
-          title: '错词本清扫',
-          desc: wrong ? `${wrong} 个易错词` : '错词本已清空',
-          minutes: 10,
-          route: '/vocab/wrong',
-          done: done.has('final-wrong'),
-        },
-        {
-          id: 'final-write',
-          title: '套一套写作模板',
-          desc: '考前只练结构，不写新长文',
-          minutes: 12,
-          route: '/writing/fill',
-          done: done.has('final-write'),
-        },
-      ]
-    }
-
-    return [
-      {
-        id: 'vocab',
-        title: '今日背词',
-        desc: due ? `${due} 词待复习` : '开启新一组',
-        minutes: 10,
-        route: '/train/vocab',
-        done: done.has('vocab'),
-      },
-      {
-        id: 'writing',
-        title: phase === 'sprint' ? '冲刺：套模板成文' : '套模板练习',
-        desc: '填空生成骨架成稿',
-        minutes: 12,
-        route: '/writing/fill',
-        done: done.has('writing'),
-      },
-      {
-        id: 'phrases',
-        title: wrong ? '复习错词' : '背几条金句',
-        desc: wrong ? `${wrong} 个错词优先` : '开头 / 结尾万能句',
-        minutes: 8,
-        route: wrong ? '/vocab/wrong' : '/train/templates',
-        done: done.has('phrases'),
-      },
-    ]
+    const domain = getDomain(boundDomain)
+    return domain.buildTodayTasks({
+      phase: user().phase,
+      dueCount: dueWordIds.value.length,
+      wrongCount: wrongWordIds.value.length,
+      doneIds: new Set(doneTaskIds.value),
+    })
   })
 
   function ensureCard(id: string): VocabCardState {
@@ -393,5 +396,6 @@ export const useStudyStore = defineStore('study', () => {
     toggleGapTask,
     recordPracticeError,
     boostRadar,
+    switchDomain,
   }
 })

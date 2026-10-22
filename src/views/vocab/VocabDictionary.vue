@@ -1,6 +1,8 @@
 <script lang="ts">
 import type { ExamLevel } from '@/types'
 
+const BROWSE_KEY = 'zhijuan:dict-browse'
+
 /** 用法页返回时恢复：词表、字母、搜索和列表滚动位置 */
 const dictBrowse = {
   level: 'cet4' as ExamLevel,
@@ -8,6 +10,32 @@ const dictBrowse = {
   q: '',
   scrollTop: 0,
 }
+
+function readBrowse() {
+  try {
+    const raw = sessionStorage.getItem(BROWSE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Partial<typeof dictBrowse>
+    if (parsed.level === 'cet4' || parsed.level === 'cet6') dictBrowse.level = parsed.level
+    if (typeof parsed.letter === 'string' && parsed.letter) dictBrowse.letter = parsed.letter
+    if (typeof parsed.q === 'string') dictBrowse.q = parsed.q
+    if (typeof parsed.scrollTop === 'number' && parsed.scrollTop >= 0) {
+      dictBrowse.scrollTop = parsed.scrollTop
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function writeBrowse() {
+  try {
+    sessionStorage.setItem(BROWSE_KEY, JSON.stringify(dictBrowse))
+  } catch {
+    /* ignore */
+  }
+}
+
+readBrowse()
 </script>
 
 <script setup lang="ts">
@@ -33,8 +61,10 @@ const q = ref(dictBrowse.q)
 const pageEl = ref<HTMLElement | null>(null)
 let restoringScroll = false
 let freezeScroll = false
+let freezeTimer: ReturnType<typeof setTimeout> | undefined
 
 onMounted(async () => {
+  syncFromBrowse()
   try {
     all.value = await getDictionaryVocab()
   } finally {
@@ -44,6 +74,8 @@ onMounted(async () => {
 })
 
 onActivated(() => {
+  // 系统侧滑返回时 keep-alive 会走这里；同步选中态并恢复滚动
+  syncFromBrowse()
   if (!loading.value) void restoreScroll()
 })
 
@@ -70,25 +102,35 @@ const filtered = computed(() => {
   return g?.words ?? []
 })
 
-watch(level, (value) => {
+watch(level, (value, prev) => {
   dictBrowse.level = value
-  q.value = ''
+  // 仅用户切换词表时清空搜索；从 session 同步时不打断
+  if (prev !== undefined && value !== prev) q.value = ''
   if (!letters.value.includes(letter.value)) {
     letter.value = letters.value[0] || 'A'
   }
+  writeBrowse()
 })
 
 watch(letter, (value) => {
   dictBrowse.letter = value
+  writeBrowse()
 })
 
 watch(q, (value) => {
   dictBrowse.q = value
+  writeBrowse()
 })
 
 watch(letters, (ls) => {
   if (ls.length && !ls.includes(letter.value)) letter.value = ls[0]!
 })
+
+function syncFromBrowse() {
+  if (level.value !== dictBrowse.level) level.value = dictBrowse.level
+  if (letter.value !== dictBrowse.letter) letter.value = dictBrowse.letter
+  if (q.value !== dictBrowse.q) q.value = dictBrowse.q
+}
 
 function usageOf(w: VocabWord): string {
   if (w.collocation) return w.collocation
@@ -100,33 +142,49 @@ function usageOf(w: VocabWord): string {
 function rememberScroll() {
   if (freezeScroll || restoringScroll || loading.value || !pageEl.value) return
   dictBrowse.scrollTop = pageEl.value.scrollTop
+  writeBrowse()
 }
 
 function scrollToTop() {
   dictBrowse.scrollTop = 0
+  writeBrowse()
   if (pageEl.value) pageEl.value.scrollTop = 0
 }
 
+function clearFreezeTimer() {
+  if (freezeTimer !== undefined) {
+    clearTimeout(freezeTimer)
+    freezeTimer = undefined
+  }
+}
+
 async function restoreScroll() {
+  clearFreezeTimer()
   const top = dictBrowse.scrollTop
   if (top <= 0) {
     freezeScroll = false
+    restoringScroll = false
     return
   }
   restoringScroll = true
+  freezeScroll = true
   const apply = () => {
     if (pageEl.value) pageEl.value.scrollTop = top
   }
   await nextTick()
-  apply()
-  requestAnimationFrame(() => {
+  // 侧滑返回时布局稍晚，多帧重试避免被重置后停在顶部
+  for (let i = 0; i < 10; i++) {
     apply()
-    requestAnimationFrame(() => {
-      apply()
-      restoringScroll = false
-      freezeScroll = false
-    })
-  })
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  }
+  await new Promise<void>((resolve) => setTimeout(resolve, 80))
+  apply()
+  restoringScroll = false
+  // 短暂继续忽略 scroll=0，防止恢复后瞬时事件把位置写坏
+  freezeTimer = setTimeout(() => {
+    freezeScroll = false
+    freezeTimer = undefined
+  }, 160)
 }
 
 function setLevel(lv: ExamLevel) {
@@ -142,12 +200,15 @@ function pickLetter(L: string) {
 
 function openWord(w: VocabWord) {
   rememberScroll()
+  freezeScroll = true
+  writeBrowse()
   router.push(`/train/dictionary/${w.id}`)
 }
 
 onBeforeRouteLeave(() => {
   rememberScroll()
   freezeScroll = true
+  writeBrowse()
 })
 </script>
 

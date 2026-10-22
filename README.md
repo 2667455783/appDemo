@@ -1,4 +1,4 @@
-# 英语备考 App（appDemo）
+# 学习宝典 App（appDemo）
 
 基于 `englishDemo`（Vue 3 + TypeScript + Vite）用 **Capacitor 6** 套壳生成的 Android / iOS 原生 App。
 核心差异：翻译页的语音输入改用 **原生 SpeechRecognition 插件**，绕过浏览器 Web Speech API 的限制（iOS Safari 不支持、非 HTTPS 不可用），在手机 App 内可直接语音输入。

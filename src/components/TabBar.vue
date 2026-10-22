@@ -1,17 +1,22 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppUpdateStore } from '@/stores/appUpdate'
+import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
+const user = useUserStore()
 const { badgeVisible } = storeToRefs(useAppUpdateStore())
 
-const tabs = [
-  { to: '/', label: '首页', icon: 'home' },
-  { to: '/vocab', label: '单词', icon: 'vocab' },
-  { to: '/writing', label: '写作', icon: 'write' },
-  { to: '/profile', label: '我的', icon: 'me' },
-]
+const tabs = computed(() => {
+  const mid = user.activeDomain.tabs
+  return [
+    { to: '/', label: '首页', icon: 'home' as const },
+    ...mid.map((t) => ({ to: t.route, label: t.label, icon: t.icon })),
+    { to: '/profile', label: '我的', icon: 'me' as const },
+  ]
+})
 
 function active(to: string) {
   if (to === '/') return route.path === '/'
@@ -33,6 +38,14 @@ function active(to: string) {
         <svg v-else-if="t.icon === 'write'" width="20" height="20" viewBox="0 0 24 24" fill="none">
           <path d="M5 19h4.2L18.5 9.7a1.6 1.6 0 0 0 0-2.3L15.8 4.7a1.6 1.6 0 0 0-2.3 0L4 14.2V19Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
           <path d="M12.8 6.2 16.5 10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+        </svg>
+        <svg v-else-if="t.icon === 'learn'" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M4 6.5 12 3l8 3.5v8.2c0 3.2-3.4 5.8-8 7.3-4.6-1.5-8-4.1-8-7.3V6.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+          <path d="M12 11v6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+        </svg>
+        <svg v-else-if="t.icon === 'practice'" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.7" />
+          <path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
         </svg>
         <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none">
           <circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="1.7" />

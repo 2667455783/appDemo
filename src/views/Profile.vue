@@ -2,7 +2,8 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
-import { LEVEL_LABEL } from '@/types'
+import { listEnabledDomains } from '@/domains/registry'
+import type { DomainId } from '@/domains/types'
 import { useUserStore } from '@/stores/user'
 import { useStudyStore } from '@/stores/study'
 import { useAppUpdateStore } from '@/stores/appUpdate'
@@ -11,20 +12,35 @@ const router = useRouter()
 const user = useUserStore()
 const study = useStudyStore()
 const update = useAppUpdateStore()
+const domains = listEnabledDomains()
 
 const mastered = computed(() => {
   return Object.values(study.vocab).filter((c) => c.correct >= 2 && c.status === 'review').length
 })
 
-const examLine = computed(
-  () => `${LEVEL_LABEL[user.level]} · 目标 ${user.targetScore} · ${user.examDate}`,
-)
+const examLine = computed(() => {
+  if (user.activeDomainId === 'english') {
+    return `${user.activeLevelLabel} · 目标 ${user.targetScore} · ${user.examDate}`
+  }
+  return `${user.activeDomain.name} · ${user.activeLevelLabel}`
+})
 
 const displayMotto = computed(() => {
   if (user.motto.trim()) return user.motto
-  const short = user.level === 'cet4' ? '四级' : '六级'
-  return `每天进步一点点，目标${short}${user.targetScore}+`
+  if (user.activeDomainId === 'english') {
+    const short = user.level === 'cet4' ? '四级' : '六级'
+    return `每天进步一点点，目标${short}${user.targetScore}+`
+  }
+  return `正在学习「${user.activeDomain.name}」，持续打卡`
 })
+
+const isEnglish = computed(() => user.activeDomainId === 'english')
+
+function selectDomain(id: DomainId) {
+  if (id === user.activeDomainId) return
+  user.setActiveDomain(id)
+  router.replace('/')
+}
 
 function reset() {
   if (!confirm('清除本地学习数据并回到欢迎页？')) return
@@ -96,18 +112,40 @@ function reset() {
       </div>
     </div>
 
-    <div class="grid2">
+    <div class="card" style="margin-top: 14px">
+      <p class="muted">学习学科</p>
+      <div class="chips" style="margin-top: 10px">
+        <button
+          v-for="d in domains"
+          :key="d.id"
+          class="chip"
+          :class="{ on: user.activeDomainId === d.id }"
+          type="button"
+          @click="selectDomain(d.id)"
+        >
+          {{ d.name }}
+          <span v-if="!d.hasContent" class="chip-soon">筹</span>
+        </button>
+      </div>
+      <p class="page-sub" style="margin-top: 8px">
+        切换学科后，学习进度按学科分别保存。
+      </p>
+    </div>
+
+    <div class="grid2" style="margin-top: 16px">
       <div class="card">
         <p class="muted">连续打卡</p>
         <p class="num">{{ user.streak }}</p>
       </div>
       <div class="card">
-        <p class="muted">掌握词汇</p>
-        <p class="num">{{ mastered }}</p>
+        <p class="muted">{{ isEnglish ? '掌握词汇' : '今日完成' }}</p>
+        <p class="num">
+          {{ isEnglish ? mastered : study.todayTasks.filter((t) => t.done).length }}
+        </p>
       </div>
     </div>
 
-    <div class="card" style="margin-top: 16px">
+    <div v-if="isEnglish" class="card" style="margin-top: 16px">
       <p class="muted">学习数据</p>
       <p class="page-sub">
         掌握词汇 {{ mastered }} · 错词 {{ study.wrongWordIds.length }} · 模板收藏见写作页
@@ -117,7 +155,13 @@ function reset() {
     <button class="btn ghost block" style="margin-top: 16px" type="button" @click="router.push('/profile/reminder')">
       学习提醒
     </button>
-    <button class="btn ghost block" style="margin-top: 10px" type="button" @click="router.push('/translate')">
+    <button
+      v-if="isEnglish"
+      class="btn ghost block"
+      style="margin-top: 10px"
+      type="button"
+      @click="router.push('/translate')"
+    >
       翻译工具
     </button>
     <button class="btn ghost block" style="margin-top: 10px" type="button" @click="router.push('/profile/about')">
@@ -201,5 +245,10 @@ function reset() {
   border-radius: 50%;
   background: var(--coral);
   box-shadow: 0 0 0 2px rgba(184, 92, 74, 0.2);
+}
+.chip-soon {
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.75;
 }
 </style>

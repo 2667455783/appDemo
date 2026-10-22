@@ -26,7 +26,7 @@ export function buildReminderCopy(payload: {
   daysLeft: number
   studiedToday: boolean
 }): ReminderCopy {
-  const title = '知卷 · 该学习啦'
+  const title = '学习宝典 · 该学习啦'
   if (payload.studiedToday) {
     return { title, body: `${payload.name}，今天已打卡，再来一组巩固一下吧` }
   }

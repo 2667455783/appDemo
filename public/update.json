@@ -1,8 +1,8 @@
 {
-  "version": "1.0.22",
-  "versionCode": 23,
-  "apkUrl": "http://134.175.54.151/englishStudy/英语备考.apk",
-  "notes": "新增收藏模板功能",
-  "publishedAt": "2026-09-07",
+  "version": "1.0.27",
+  "versionCode": 28,
+  "apkUrl": "http://134.175.54.151/englishStudy/学习宝典.apk",
+  "notes": "应用更名为学习宝典，更换新图标；支持多学科切换（英语/编程/医药）",
+  "publishedAt": "2026-10-22",
   "force": false
 }

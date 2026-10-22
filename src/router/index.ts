@@ -60,9 +60,17 @@ const router = createRouter({
     { path: '/profile/share', component: () => import('@/views/profile/ShareFriends.vue'), meta: { tab: false } },
     { path: '/profile/about', component: () => import('@/views/profile/About.vue'), meta: { tab: false } },
     { path: '/sprint', component: () => import('@/views/sprint/Sprint.vue'), meta: { tab: false } },
+    {
+      path: '/d/:domainId/:section',
+      component: () => import('@/views/domain/DomainPlaceholder.vue'),
+      meta: { tab: true },
+    },
     { path: '/profile', component: () => import('@/views/Profile.vue'), meta: { tab: true } },
   ],
-  scrollBehavior() {
+  scrollBehavior(to, _from, savedPosition) {
+    // 词典列表自己恢复滚动，避免返回时被重置到顶部
+    if (to.path === '/train/dictionary') return false
+    if (savedPosition) return savedPosition
     return { top: 0 }
   },
 })

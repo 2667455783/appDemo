@@ -2,8 +2,8 @@ import { Capacitor, registerPlugin } from '@capacitor/core'
 import { UPDATE_PUBLIC_BASE } from '@/config/update'
 import { checkForUpdate, getManifestUrl } from '@/services/appUpdate'
 
-export const APP_SHARE_NAME = '英语备考'
-export const SHARE_APK_FILE_NAME = '英语备考.apk'
+export const APP_SHARE_NAME = '学习宝典'
+export const SHARE_APK_FILE_NAME = '学习宝典.apk'
 
 export const DEFAULT_APK_SHARE_URL = `${UPDATE_PUBLIC_BASE}/latest.apk`
 

@@ -1,5 +1,8 @@
 <script setup lang="ts">
-withDefaults(
+import { computed } from 'vue'
+import { Capacitor } from '@capacitor/core'
+
+const props = withDefaults(
   defineProps<{
     title?: string
     back?: boolean
@@ -9,12 +12,15 @@ withDefaults(
 )
 
 const emit = defineEmits<{ back: [] }>()
+
+/** 仅 H5 显示返回；安卓 / iOS 用系统侧滑或物理返回 */
+const showBack = computed(() => props.back && !Capacitor.isNativePlatform())
 </script>
 
 <template>
   <header class="head">
-    <div class="title-row" :class="{ 'has-back': back }">
-      <button v-if="back" class="back-btn" type="button" aria-label="返回" @click="emit('back')">
+    <div class="title-row" :class="{ 'has-back': showBack }">
+      <button v-if="showBack" class="back-btn" type="button" aria-label="返回" @click="emit('back')">
         <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path
             d="M15 6L9 12l6 6"

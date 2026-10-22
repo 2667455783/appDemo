@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { getDomain, isDomainId } from '@/domains/registry'
+import type { DomainId } from '@/domains/types'
 import type { ExamLevel, ExamMemory, OfficialScore, TargetScore } from '@/types'
 import { addDays, daysUntil, loadState, saveState, todayISO } from '@/utils/storage'
 
@@ -8,6 +10,7 @@ type UserState = {
   name: string
   birthday: string
   motto: string
+  /** @deprecated 兼容旧数据；读写走 domainLevels + level computed */
   level: ExamLevel
   targetScore: TargetScore
   examDate: string
@@ -15,13 +18,16 @@ type UserState = {
   lastStudyDate: string
   officialScore: OfficialScore | null
   examMemory: ExamMemory | null
+  activeDomainId: DomainId
+  /** 各学科当前等级 id（英语为 cet4/cet6） */
+  domainLevels: Partial<Record<DomainId, string>>
 }
 
 const defaultDate = addDays(todayISO(), 46)
 
 const defaults: UserState = {
   onboarded: false,
-  name: '考生',
+  name: '学习者',
   birthday: '',
   motto: '',
   level: 'cet4',
@@ -31,14 +37,33 @@ const defaults: UserState = {
   lastStudyDate: '',
   officialScore: null,
   examMemory: null,
+  activeDomainId: 'english',
+  domainLevels: { english: 'cet4' },
 }
 
 function persist(state: UserState) {
   saveState('user', state)
 }
 
+function migrateUser(saved: UserState): UserState {
+  const activeDomainId =
+    saved.activeDomainId && isDomainId(saved.activeDomainId) ? saved.activeDomainId : 'english'
+  const domainLevels: Partial<Record<DomainId, string>> = {
+    english: saved.level || 'cet4',
+    ...(saved.domainLevels || {}),
+  }
+  if (!domainLevels.english) domainLevels.english = saved.level || 'cet4'
+  return {
+    ...defaults,
+    ...saved,
+    activeDomainId,
+    domainLevels,
+    level: (domainLevels.english as ExamLevel) || saved.level || 'cet4',
+  }
+}
+
 export const useUserStore = defineStore('user', () => {
-  const saved = loadState<UserState>('user', defaults)
+  const saved = migrateUser(loadState<UserState>('user', defaults))
   const onboarded = ref(saved.onboarded)
   const name = ref(saved.name)
   const birthday = ref(saved.birthday)
@@ -50,6 +75,8 @@ export const useUserStore = defineStore('user', () => {
   const lastStudyDate = ref(saved.lastStudyDate)
   const officialScore = ref<OfficialScore | null>(saved.officialScore)
   const examMemory = ref<ExamMemory | null>(saved.examMemory)
+  const activeDomainId = ref<DomainId>(saved.activeDomainId)
+  const domainLevels = ref<Partial<Record<DomainId, string>>>({ ...saved.domainLevels })
 
   const daysLeft = computed(() => daysUntil(examDate.value))
   const phase = computed<'normal' | 'sprint' | 'final'>(() => {
@@ -57,6 +84,19 @@ export const useUserStore = defineStore('user', () => {
     if (d <= 3 && d >= 0) return 'final'
     if (d <= 14 && d >= 0) return 'sprint'
     return 'normal'
+  })
+
+  const activeDomain = computed(() => getDomain(activeDomainId.value))
+
+  const activeLevelId = computed(() => {
+    const id = domainLevels.value[activeDomainId.value]
+    if (id) return id
+    return activeDomain.value.levels[0]?.id ?? ''
+  })
+
+  const activeLevelLabel = computed(() => {
+    const lv = activeDomain.value.levels.find((l) => l.id === activeLevelId.value)
+    return lv?.label ?? activeDomain.value.name
   })
 
   function snapshot(): UserState {
@@ -72,6 +112,8 @@ export const useUserStore = defineStore('user', () => {
       lastStudyDate: lastStudyDate.value,
       officialScore: officialScore.value,
       examMemory: examMemory.value,
+      activeDomainId: activeDomainId.value,
+      domainLevels: { ...domainLevels.value },
     }
   }
 
@@ -79,16 +121,44 @@ export const useUserStore = defineStore('user', () => {
     persist(snapshot())
   }
 
+  function setActiveDomain(id: DomainId) {
+    if (!isDomainId(id)) return
+    const domain = getDomain(id)
+    if (!domain.enabled) return
+    activeDomainId.value = id
+    if (!domainLevels.value[id]) {
+      domainLevels.value = {
+        ...domainLevels.value,
+        [id]: domain.levels[0]?.id ?? '',
+      }
+    }
+    flush()
+  }
+
+  function setDomainLevel(domainId: DomainId, levelId: string) {
+    domainLevels.value = { ...domainLevels.value, [domainId]: levelId }
+    if (domainId === 'english' && (levelId === 'cet4' || levelId === 'cet6')) {
+      level.value = levelId
+    }
+    flush()
+  }
+
   function completeOnboarding(payload: {
     name: string
     level: ExamLevel
     targetScore: TargetScore
     examDate: string
+    domainId?: DomainId
   }) {
-    name.value = payload.name.trim() || '考生'
+    name.value = payload.name.trim() || '学习者'
     level.value = payload.level
     targetScore.value = payload.targetScore
     examDate.value = payload.examDate
+    activeDomainId.value = payload.domainId && isDomainId(payload.domainId) ? payload.domainId : 'english'
+    domainLevels.value = {
+      ...domainLevels.value,
+      english: payload.level,
+    }
     onboarded.value = true
     flush()
   }
@@ -96,10 +166,13 @@ export const useUserStore = defineStore('user', () => {
   function updateProfile(
     payload: Partial<Pick<UserState, 'name' | 'birthday' | 'motto' | 'level' | 'targetScore' | 'examDate'>>,
   ) {
-    if (payload.name !== undefined) name.value = payload.name.trim() || '考生'
+    if (payload.name !== undefined) name.value = payload.name.trim() || '学习者'
     if (payload.birthday !== undefined) birthday.value = payload.birthday
     if (payload.motto !== undefined) motto.value = payload.motto
-    if (payload.level) level.value = payload.level
+    if (payload.level) {
+      level.value = payload.level
+      domainLevels.value = { ...domainLevels.value, english: payload.level }
+    }
     if (payload.targetScore) targetScore.value = payload.targetScore
     if (payload.examDate) examDate.value = payload.examDate
     flush()
@@ -140,6 +213,8 @@ export const useUserStore = defineStore('user', () => {
     lastStudyDate.value = ''
     officialScore.value = null
     examMemory.value = null
+    activeDomainId.value = defaults.activeDomainId
+    domainLevels.value = { ...defaults.domainLevels }
     flush()
   }
 
@@ -155,8 +230,15 @@ export const useUserStore = defineStore('user', () => {
     lastStudyDate,
     officialScore,
     examMemory,
+    activeDomainId,
+    domainLevels,
+    activeDomain,
+    activeLevelId,
+    activeLevelLabel,
     daysLeft,
     phase,
+    setActiveDomain,
+    setDomainLevel,
     completeOnboarding,
     updateProfile,
     markStudy,
