@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  默认 development：装到已在 Xcode 登录账号下注册的设备。
+  分发多人用 ad-hoc；上架用 app-store。
+  也可由 release-ios.mjs 按 release.config.json 的 iosExportMethod / iosTeamId 覆盖生成。
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>development</string>
+	<key>compileBitcode</key>
+	<false/>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>stripSwiftSymbols</key>
+	<true/>
+	<key>thinning</key>
+	<string>&lt;none&gt;</string>
+</dict>
+</plist>

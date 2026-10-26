@@ -5,5 +5,8 @@
   "identityFile": "C:/Users/PC/.ssh/vue_admin_deploy",
   "remoteDir": "/var/www/vue-admin/englishStudy",
   "publicBase": "http://134.175.54.151/englishStudy",
-  "apkNamePattern": "学习宝典.apk"
+  "apkNamePattern": "学习宝典.apk",
+  "ipaNamePattern": "app-{version}.ipa",
+  "iosExportMethod": "development",
+  "iosTeamId": ""
 }

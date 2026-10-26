@@ -27,6 +27,8 @@ lerna-debug.log*
 .env
 .env.*
 !.env.example
+backend/.env
+backend/target/
 
 # =========================
 # 本机发版产物（APK 很大，勿入库）
@@ -40,6 +42,7 @@ release/
 # 本机 Android SDK（约 1 万+ 文件）/ 语音模型缓存
 # =========================
 .android-sdk/
+.tools/
 .vosk-models/
 scripts/.vosk-models/
 scripts/.temp/

@@ -17,6 +17,8 @@ const activeId = ref('')
 const loading = ref(false)
 const error = ref('')
 const sheetIndex = ref(0)
+/** Markdown / HTML：渲染预览 / 查看原文 */
+const textMode = ref<'preview' | 'source'>('preview')
 
 const current = computed(() => docs.value.find((d) => d.id === activeId.value))
 
@@ -37,6 +39,7 @@ async function onFileChange(e: Event) {
     docs.value = [...docs.value, doc]
     activeId.value = doc.id
     sheetIndex.value = 0
+    textMode.value = 'preview'
     if (doc.parsed.kind === 'unsupported') {
       error.value = doc.parsed.reason
     }
@@ -50,6 +53,7 @@ async function onFileChange(e: Event) {
 function selectDoc(id: string) {
   activeId.value = id
   sheetIndex.value = 0
+  textMode.value = 'preview'
   error.value = ''
   const doc = docs.value.find((d) => d.id === id)
   if (doc?.parsed.kind === 'unsupported') error.value = doc.parsed.reason
@@ -85,7 +89,7 @@ onUnmounted(() => {
     <button class="btn primary block" type="button" :disabled="loading" @click="pickFile">
       {{ loading ? '正在解析…' : '选择本地文件' }}
     </button>
-    <p class="page-sub" style="margin-top: 8px">支持 Word、PDF、Excel、TXT、Markdown、图片</p>
+    <p class="page-sub" style="margin-top: 8px">支持 Word、PDF、Excel、TXT、Markdown（.md）、HTML、图片</p>
     <p v-if="error" class="page-sub err">{{ error }}</p>
 
     <div v-if="docs.length" class="chips" style="margin-top: 14px">
@@ -116,8 +120,60 @@ onUnmounted(() => {
 
       <pre v-else-if="current.parsed.kind === 'txt'" class="txt">{{ current.parsed.text }}</pre>
 
+      <template v-else-if="current.parsed.kind === 'md'">
+        <div class="md-toolbar">
+          <button
+            class="chip"
+            :class="{ on: textMode === 'preview' }"
+            type="button"
+            @click="textMode = 'preview'"
+          >
+            预览
+          </button>
+          <button
+            class="chip"
+            :class="{ on: textMode === 'source' }"
+            type="button"
+            @click="textMode = 'source'"
+          >
+            原文
+          </button>
+        </div>
+        <div v-if="textMode === 'preview'" class="rich md-rich" v-html="current.parsed.html" />
+        <pre v-else class="txt">{{ current.rawText || '' }}</pre>
+      </template>
+
+      <template v-else-if="current.parsed.kind === 'html'">
+        <div class="md-toolbar">
+          <button
+            class="chip"
+            :class="{ on: textMode === 'preview' }"
+            type="button"
+            @click="textMode = 'preview'"
+          >
+            预览
+          </button>
+          <button
+            class="chip"
+            :class="{ on: textMode === 'source' }"
+            type="button"
+            @click="textMode = 'source'"
+          >
+            原文
+          </button>
+        </div>
+        <iframe
+          v-if="textMode === 'preview'"
+          class="html-frame"
+          title="HTML 预览"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+          :srcdoc="current.parsed.html"
+        />
+        <pre v-else class="txt">{{ current.rawText || '' }}</pre>
+      </template>
+
       <div
-        v-else-if="current.parsed.kind === 'md' || current.parsed.kind === 'word'"
+        v-else-if="current.parsed.kind === 'word'"
         class="rich"
         v-html="current.parsed.html"
       />
@@ -205,6 +261,20 @@ onUnmounted(() => {
   line-height: 1.55;
   font-family: var(--sans);
 }
+.md-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.html-frame {
+  display: block;
+  width: 100%;
+  min-height: min(70vh, 560px);
+  height: 70vh;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
 .rich {
   font-size: 14px;
   line-height: 1.65;
@@ -212,12 +282,42 @@ onUnmounted(() => {
 }
 .rich :deep(h1),
 .rich :deep(h2),
-.rich :deep(h3) {
+.rich :deep(h3),
+.rich :deep(h4),
+.rich :deep(h5),
+.rich :deep(h6) {
   margin: 12px 0 8px;
   font-family: var(--serif);
 }
 .rich :deep(p) {
   margin: 0 0 8px;
+}
+.rich :deep(ul),
+.rich :deep(ol) {
+  margin: 0 0 10px;
+  padding-left: 1.35em;
+}
+.rich :deep(li) {
+  margin: 2px 0;
+}
+.rich :deep(blockquote) {
+  margin: 0 0 10px;
+  padding: 6px 12px;
+  border-left: 3px solid var(--forest);
+  background: color-mix(in srgb, var(--moss) 55%, transparent);
+  color: var(--ink-soft);
+}
+.rich :deep(hr) {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 14px 0;
+}
+.rich :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--paper);
 }
 .rich :deep(img) {
   max-width: 100%;
@@ -227,11 +327,16 @@ onUnmounted(() => {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  margin: 0 0 10px;
 }
 .rich :deep(td),
 .rich :deep(th) {
   border: 1px solid var(--line);
   padding: 4px 6px;
+}
+.rich :deep(th) {
+  background: var(--moss);
+  font-weight: 700;
 }
 .rich :deep(pre) {
   overflow-x: auto;
@@ -239,6 +344,14 @@ onUnmounted(() => {
   padding: 10px;
   border-radius: 8px;
   font-size: 12px;
+}
+.rich :deep(pre code) {
+  padding: 0;
+  background: transparent;
+}
+.rich :deep(a) {
+  color: var(--forest);
+  word-break: break-all;
 }
 .table-wrap {
   overflow: auto;

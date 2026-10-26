@@ -61,6 +61,16 @@ const router = createRouter({
     { path: '/profile/about', component: () => import('@/views/profile/About.vue'), meta: { tab: false } },
     { path: '/sprint', component: () => import('@/views/sprint/Sprint.vue'), meta: { tab: false } },
     {
+      path: '/d/programming/practice',
+      component: () => import('@/views/programming/Practice.vue'),
+      meta: { tab: true },
+    },
+    {
+      path: '/d/programming/workbench',
+      component: () => import('@/views/programming/Workbench.vue'),
+      meta: { tab: false },
+    },
+    {
       path: '/d/:domainId/:section',
       component: () => import('@/views/domain/DomainPlaceholder.vue'),
       meta: { tab: true },

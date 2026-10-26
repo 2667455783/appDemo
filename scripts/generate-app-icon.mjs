@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * 从 resources/app-icon-source.jpg 生成 Android 各密度启动图标
+ * 从 resources/app-icon-source.jpg 生成 Android 各密度启动图标 + iOS AppIcon
  * 用法：node scripts/generate-app-icon.mjs [源图路径]
  */
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
@@ -13,6 +13,7 @@ const root = resolve(__dirname, '..')
 const defaultSrc = join(root, 'resources', 'app-icon-source.jpg')
 const src = resolve(process.argv[2] || defaultSrc)
 const resRoot = join(root, 'android', 'app', 'src', 'main', 'res')
+const iosIconDir = join(root, 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset')
 
 const densities = [
   { folder: 'mipmap-mdpi', launcher: 48, foreground: 108 },
@@ -76,8 +77,40 @@ async function main() {
     console.log(`✓ ${d.folder}`)
   }
 
+  // iOS：单一 1024 图标（Xcode 13+ / Capacitor 默认 AppIcon.appiconset）
+  if (existsSync(join(root, 'ios'))) {
+    mkdirSync(iosIconDir, { recursive: true })
+    const iosName = 'AppIcon-512@2x.png'
+    await sharp(src)
+      .resize(1024, 1024, { fit: 'cover', position: 'centre' })
+      .png()
+      .toFile(join(iosIconDir, iosName))
+    writeFileSync(
+      join(iosIconDir, 'Contents.json'),
+      JSON.stringify(
+        {
+          images: [
+            {
+              filename: iosName,
+              idiom: 'universal',
+              platform: 'ios',
+              size: '1024x1024',
+            },
+          ],
+          info: { author: 'xcode', version: 1 },
+        },
+        null,
+        2,
+      ) + '\n',
+    )
+    console.log(`✓ iOS ${iosName}`)
+  }
+
   console.log('\n图标已写入 android/app/src/main/res/mipmap-*')
-  console.log('请重新打包 APK：npm run release:apk:local')
+  if (existsSync(join(root, 'ios'))) {
+    console.log('图标已写入 ios/App/App/Assets.xcassets/AppIcon.appiconset/')
+  }
+  console.log('请重新打包：npm run release:apk:local 或 npm run release:ios:prepare')
 }
 
 main().catch((e) => {

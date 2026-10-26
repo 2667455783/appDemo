@@ -68,7 +68,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
       <div v-if="$slots.default" class="dlg-body">
         <slot />
       </div>
-      <div class="dlg-actions" :class="{ stacked: !secondaryText }">
+      <div v-if="primaryText || secondaryText" class="dlg-actions" :class="{ stacked: !secondaryText }">
         <button
           v-if="secondaryText"
           class="btn ghost block"
@@ -77,7 +77,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         >
           {{ secondaryText }}
         </button>
-        <button class="btn primary block" type="button" @click="emit('primary')">
+        <button v-if="primaryText" class="btn primary block" type="button" @click="emit('primary')">
           {{ primaryText }}
         </button>
       </div>

@@ -46,19 +46,32 @@ npx cap open android   # 用 Android Studio 打开 android/ 工程
 
 权限：麦克风（RECORD_AUDIO）、网络（INTERNET）已在 `AndroidManifest.xml` 配好。
 
-## 编译 iOS（需 Mac + Xcode）
+## 编译 iOS / 打 IPA（需 Mac + Xcode）
 
-> Windows 无法编译 iOS。把整个 appDemo 文件夹拷到 Mac 上：
+> Windows 无法执行 `xcodebuild`。可先在 Windows 准备，再拷到 Mac 打 IPA。详见 [docs/IPA发版说明.md](docs/IPA发版说明.md)。
+
+```bash
+# Windows：升版本 + 构建 Web + cap sync（不打 IPA）
+npm run release:ios:prepare -- --notes "更新说明"
+
+# Mac：打 IPA 并上传（若 Windows 已升过版本，务必加 --no-bump）
+npm run release:ios -- --no-bump --notes "更新说明"
+npm run release:ios:local -- --no-bump   # 只打 IPA 不上传
+```
+
+手动打开 Xcode：
 
 ```bash
 npm install
 npm run cap:sync
 cd ios/App && pod install        # 首次需装 CocoaPods：sudo gem install cocoapods
-npx cap open ios                  # 用 Xcode 打开
+npx cap open ios
 ```
 
 在 Xcode 里配置签名团队（Signing & Capabilities），选真机或模拟器，点 ▶ Run。
 权限说明已在 `Info.plist` 配好：`NSMicrophoneUsageDescription`、`NSSpeechRecognitionUsageDescription`。
+
+Android 一键发版见 [docs/APK发版说明.md](docs/APK发版说明.md)。
 
 ## 语音输入说明
 

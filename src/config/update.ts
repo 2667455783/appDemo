@@ -1,7 +1,8 @@
 /**
  * 版本更新 —— 已对接你的服务器
  * 清单：http://134.175.54.151/englishStudy/update.json
- * APK：  http://134.175.54.151/englishStudy/app-{version}.apk
+ * APK：  http://134.175.54.151/englishStudy/学习宝典.apk
+ * IPA：  http://134.175.54.151/englishStudy/app-{version}.ipa（需描述文件/TestFlight 等安装）
  */
 export const UPDATE_PUBLIC_BASE = 'http://134.175.54.151/englishStudy'
 
@@ -15,6 +16,8 @@ export type UpdateManifest = {
   version: string
   versionCode: number
   apkUrl: string
+  /** iOS 包地址；侧载需签名/描述文件，不能像 APK 直接点链接安装 */
+  ipaUrl?: string
   notes?: string
   publishedAt?: string
   force?: boolean

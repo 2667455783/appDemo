@@ -1,6 +1,6 @@
 import { uid } from '@/utils/storage'
 
-export type DocKind = 'image' | 'txt' | 'md' | 'pdf' | 'word' | 'excel' | 'unsupported'
+export type DocKind = 'image' | 'txt' | 'md' | 'html' | 'pdf' | 'word' | 'excel' | 'unsupported'
 
 export type ExcelSheet = { name: string; rows: string[][] }
 
@@ -8,6 +8,7 @@ export type ParsedDoc =
   | { kind: 'image'; url: string }
   | { kind: 'txt'; text: string }
   | { kind: 'md'; html: string }
+  | { kind: 'html'; html: string }
   | { kind: 'word'; html: string }
   | { kind: 'pdf'; images: string[]; total: number; truncated: boolean }
   | { kind: 'excel'; sheets: ExcelSheet[] }
@@ -19,10 +20,12 @@ export type OpenDoc = {
   kind: DocKind
   sizeLabel: string
   parsed: ParsedDoc
+  /** Markdown / HTML 原文，用于切换「渲染 / 原文」 */
+  rawText?: string
 }
 
 export const DOC_ACCEPT =
-  '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.markdown,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,application/pdf,image/*,text/plain,text/markdown,text/csv'
+  '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.markdown,.mdown,.mkd,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,application/pdf,image/*,text/plain,text/markdown,text/x-markdown,text/html,text/csv'
 
 const MAX_BYTES = 32 * 1024 * 1024
 const PDF_MAX_PAGES = 40
@@ -33,6 +36,7 @@ const KIND_LABEL: Record<DocKind, string> = {
   image: '图片',
   txt: 'TXT',
   md: 'Markdown',
+  html: 'HTML',
   pdf: 'PDF',
   word: 'Word',
   excel: 'Excel',
@@ -58,7 +62,17 @@ export function detectKind(file: File): DocKind {
   ) {
     return 'excel'
   }
-  if (/\.(md|markdown)$/.test(name) || type === 'text/markdown') return 'md'
+  if (
+    /\.(md|markdown|mdown|mkd)$/.test(name) ||
+    type === 'text/markdown' ||
+    type === 'text/x-markdown'
+  ) {
+    return 'md'
+  }
+  // 必须在通用 text/* 之前：否则 text/html 会被当成 TXT 源码
+  if (/\.html?$/.test(name) || type === 'text/html' || type === 'application/xhtml+xml') {
+    return 'html'
+  }
   if (name.endsWith('.txt') || type.startsWith('text/')) return 'txt'
   return 'unsupported'
 }
@@ -97,6 +111,9 @@ export function renderMarkdown(src: string): string {
   let inCode = false
   const code: string[] = []
   let listType: 'ul' | 'ol' | null = null
+  let inQuote = false
+  let inTable = false
+  const tableRows: string[][] = []
 
   const closeList = () => {
     if (listType) {
@@ -105,11 +122,54 @@ export function renderMarkdown(src: string): string {
     }
   }
 
+  const closeQuote = () => {
+    if (inQuote) {
+      html.push('</blockquote>')
+      inQuote = false
+    }
+  }
+
+  const flushTable = () => {
+    if (!inTable || !tableRows.length) {
+      inTable = false
+      tableRows.length = 0
+      return
+    }
+    const [header, ...rest] = tableRows
+    // 去掉对齐分隔行 |---|---|
+    const body = rest.filter((row) => !row.every((c) => /^:?-{2,}:?$/.test(c.trim())))
+    html.push('<table><thead><tr>')
+    for (const cell of header!) html.push(`<th>${inline(cell.trim())}</th>`)
+    html.push('</tr></thead><tbody>')
+    for (const row of body) {
+      html.push('<tr>')
+      for (const cell of row) html.push(`<td>${inline(cell.trim())}</td>`)
+      html.push('</tr>')
+    }
+    html.push('</tbody></table>')
+    inTable = false
+    tableRows.length = 0
+  }
+
+  const closeBlocks = () => {
+    flushTable()
+    closeList()
+    closeQuote()
+  }
+
   const inline = (s: string) => {
     let t = escapeHtml(s)
     t = t.replace(/`([^`]+)`/g, '<code>$1</code>')
+    t = t.replace(/~~([^~]+)~~/g, '<del>$1</del>')
     t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    t = t.replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    // 先处理加粗后再处理单星号/下划线斜体，避免 lookbehind（旧 WebView 不支持）
     t = t.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    t = t.replace(/_([^_]+)_/g, '<em>$1</em>')
+    t = t.replace(
+      /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<img src="$2" alt="$1" loading="lazy" />',
+    )
     t = t.replace(
       /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
@@ -124,7 +184,7 @@ export function renderMarkdown(src: string): string {
         code.length = 0
         inCode = false
       } else {
-        closeList()
+        closeBlocks()
         inCode = true
       }
       continue
@@ -133,33 +193,67 @@ export function renderMarkdown(src: string): string {
       code.push(line)
       continue
     }
-    const h = /^(#{1,3})\s+(.+)$/.exec(line)
-    if (h) {
+
+    const tableLine = /^\s*\|(.+)\|\s*$/.exec(line)
+    if (tableLine) {
       closeList()
-      const lv = h[1].length
-      html.push(`<h${lv}>${inline(h[2])}</h${lv}>`)
+      closeQuote()
+      const cells = tableLine[1]!.split('|')
+      if (!inTable) inTable = true
+      tableRows.push(cells)
       continue
     }
-    const ul = /^\s*[-*]\s+(.+)$/.exec(line)
+    if (inTable) flushTable()
+
+    if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {
+      closeBlocks()
+      html.push('<hr />')
+      continue
+    }
+
+    const h = /^(#{1,6})\s+(.+)$/.exec(line)
+    if (h) {
+      closeBlocks()
+      const lv = h[1]!.length
+      html.push(`<h${lv}>${inline(h[2]!.trim())}</h${lv}>`)
+      continue
+    }
+
+    const quote = /^\s*>\s?(.*)$/.exec(line)
+    if (quote) {
+      closeList()
+      flushTable()
+      if (!inQuote) {
+        html.push('<blockquote>')
+        inQuote = true
+      }
+      const q = quote[1]!.trim()
+      html.push(q ? `<p>${inline(q)}</p>` : '<p></p>')
+      continue
+    }
+    if (inQuote) closeQuote()
+
+    const ul = /^\s*[-*+]\s+(.+)$/.exec(line)
     if (ul) {
       if (listType !== 'ul') {
         closeList()
         html.push('<ul>')
         listType = 'ul'
       }
-      html.push(`<li>${inline(ul[1])}</li>`)
+      html.push(`<li>${inline(ul[1]!)}</li>`)
       continue
     }
-    const ol = /^\s*\d+\.\s+(.+)$/.exec(line)
+    const ol = /^\s*\d+[.)]\s+(.+)$/.exec(line)
     if (ol) {
       if (listType !== 'ol') {
         closeList()
         html.push('<ol>')
         listType = 'ol'
       }
-      html.push(`<li>${inline(ol[1])}</li>`)
+      html.push(`<li>${inline(ol[1]!)}</li>`)
       continue
     }
+
     closeList()
     if (!line.trim()) {
       html.push('')
@@ -168,8 +262,8 @@ export function renderMarkdown(src: string): string {
     html.push(`<p>${inline(line)}</p>`)
   }
   if (inCode) html.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`)
-  closeList()
-  return html.join('\n')
+  closeBlocks()
+  return html.filter((x) => x !== '').join('\n') || '<p>（空文档）</p>'
 }
 
 function decodeText(buf: ArrayBuffer): string {
@@ -245,7 +339,7 @@ export async function parseLocalFile(file: File): Promise<OpenDoc> {
   }
   const kind = detectKind(file)
   if (kind === 'unsupported') {
-    throw new Error('暂不支持该格式，请选择 Word / PDF / Excel / TXT / MD / 图片')
+    throw new Error('暂不支持该格式，请选择 Word / PDF / Excel / TXT / MD / HTML / 图片')
   }
 
   let parsed: ParsedDoc
@@ -254,7 +348,26 @@ export async function parseLocalFile(file: File): Promise<OpenDoc> {
   } else if (kind === 'txt') {
     parsed = { kind: 'txt', text: decodeText(await file.arrayBuffer()) }
   } else if (kind === 'md') {
-    parsed = { kind: 'md', html: renderMarkdown(decodeText(await file.arrayBuffer())) }
+    const text = decodeText(await file.arrayBuffer())
+    parsed = { kind: 'md', html: renderMarkdown(text) }
+    return {
+      id: uid('doc'),
+      name: file.name,
+      kind,
+      sizeLabel: formatBytes(file.size),
+      parsed,
+      rawText: text,
+    }
+  } else if (kind === 'html') {
+    const text = decodeText(await file.arrayBuffer())
+    return {
+      id: uid('doc'),
+      name: file.name,
+      kind,
+      sizeLabel: formatBytes(file.size),
+      parsed: { kind: 'html', html: text || '<p>（空文档）</p>' },
+      rawText: text,
+    }
   } else if (kind === 'pdf') {
     parsed = await parsePdf(file)
   } else if (kind === 'word') {

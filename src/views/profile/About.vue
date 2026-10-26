@@ -13,7 +13,8 @@ const router = useRouter()
       <p class="t-title">产品定位</p>
       <p class="page-sub" style="margin-top: 8px">
         学习宝典是个人学习辅助工具，支持在 App 内切换学科（英语 / 编程 / 医药等）。当前
-        <strong>英语</strong>已开放单词打卡与作文模板；其它学科内容筹备中。与教育部教育考试院及各考试委员会无隶属或合作关系。
+        <strong>英语</strong>已开放单词打卡与作文模板；
+        <strong>编程</strong>已开放多语言代码练习沙箱；医药等内容筹备中。与教育部教育考试院及各考试委员会无隶属或合作关系。
       </p>
     </div>
 

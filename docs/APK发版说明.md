@@ -96,9 +96,12 @@ APK：`android\app\build\outputs\apk\debug\app-debug.apk`
 1. `package.json` → `version`（如 `1.0.1`）
 2. `android/app/build.gradle` → `versionName` / `versionCode`
 3. `vite.config.ts` → `APP_VERSION_CODE`
-4. `public/update.json` → 清单内容
+4. `ios/.../project.pbxproj` → `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`（与 Android 对齐）
+5. `public/update.json` → 清单内容（保留已有 `ipaUrl`）
 
 `versionCode` 必须是递增整数，用户端靠它判断是否有新版本。
+
+iOS 打 IPA 见 [IPA发版说明.md](./IPA发版说明.md)。
 
 ---
 
@@ -138,9 +141,11 @@ ssh -i C:\Users\PC\.ssh\vue_admin_deploy -o IdentitiesOnly=yes root@134.175.54.1
 
 ```
 scripts/release-apk.mjs              # 发版主脚本
+scripts/lib/app-version.mjs          # 双端版本同步（含 iOS）
 scripts/release.config.json          # 服务器 / 密钥 / 路径
 scripts/server-setup-englishStudy.sh # 服务器初始化（备用）
 src/config/update.ts                 # App 默认清单 URL
 src/services/appUpdate.ts            # 检查更新逻辑
 public/update.json                   # 本地清单模板（发版会改）
+docs/IPA发版说明.md                  # iOS IPA 发版
 ```

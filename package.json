@@ -1,7 +1,7 @@
 {
   "name": "appdemo",
   "private": true,
-  "version": "1.0.27",
+  "version": "1.0.29",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,9 +15,13 @@
     "cap:open:ios": "npx cap open ios",
     "release:apk": "node scripts/release-apk.mjs",
     "release:apk:local": "node scripts/release-apk.mjs --skip-upload",
+    "release:ios": "node scripts/release-ios.mjs",
+    "release:ios:local": "node scripts/release-ios.mjs --skip-upload",
+    "release:ios:prepare": "node scripts/release-ios.mjs --prepare-only --skip-upload",
     "generate:icon": "node scripts/generate-app-icon.mjs"
   },
   "dependencies": {
+    "@babel/standalone": "^8.0.7",
     "@capacitor/android": "^6.0.0",
     "@capacitor/app": "^6.0.0",
     "@capacitor/cli": "^6.2.1",
@@ -31,6 +35,8 @@
     "mammoth": "^1.12.2",
     "pdfjs-dist": "^4.8.69",
     "pinia": "^4.0.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "vue": "^3.5.41",
     "vue-router": "^4.6.4",
     "xlsx": "^0.18.5"

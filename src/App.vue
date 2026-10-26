@@ -115,11 +115,14 @@ onUnmounted(() => {
 <template>
   <div class="stage">
     <div class="phone">
-      <router-view v-slot="{ Component }">
-        <keep-alive include="VocabDictionary">
-          <component :is="Component" />
-        </keep-alive>
-      </router-view>
+      <div class="phone-main">
+        <router-view v-slot="{ Component }">
+          <keep-alive include="VocabDictionary">
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
+      </div>
+      <!-- 文档流占位，不再 absolute 悬在内容上 -->
       <TabBar v-if="showTab" />
 
       <AppDialog

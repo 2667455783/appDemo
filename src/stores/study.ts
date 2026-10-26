@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { scheduleRemotePush } from '@/api/syncGate'
 import { VOCAB_BANK } from '@/data/vocab'
 import { getDomain } from '@/domains/registry'
 import type { DomainId } from '@/domains/types'
@@ -102,8 +103,73 @@ export const useStudyStore = defineStore('study', () => {
     }
   }
 
-  function flush() {
+  function flushLocal() {
     saveState(storageKey(boundDomain), snapshot())
+  }
+
+  function flush() {
+    flushLocal()
+    const domain = boundDomain
+    scheduleRemotePush(`study:${domain}`, () => {
+      void pushRemote(domain)
+    })
+  }
+
+  async function pushRemote(domainId: DomainId = boundDomain) {
+    try {
+      const { saveStudy } = await import('@/api/sync')
+      // 防抖触发时可能已切学科：只推调度时的 domain 快照需在调用方闭包；此处用当前 snapshot 仅当仍是同一学科
+      const payload = domainId === boundDomain ? snapshot() : loadDomainStudy(domainId)
+      await saveStudy(domainId, payload)
+    } catch {
+      /* offline */
+    }
+  }
+
+  function nonEmptyMap(v: unknown): boolean {
+    return !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v as object).length > 0
+  }
+
+  function nonEmptyList(v: unknown): boolean {
+    return Array.isArray(v) && v.length > 0
+  }
+
+  /** 启动同步时合并服务端快照（空壳不覆盖本地） */
+  function applyRemoteSnapshot(remote: Partial<StudyState>) {
+    let changed = false
+    if (nonEmptyMap(remote.vocab)) {
+      vocab.value = remote.vocab as Record<string, VocabCardState>
+      changed = true
+    }
+    if (nonEmptyList(remote.errors)) {
+      errors.value = remote.errors as ErrorItem[]
+      changed = true
+    }
+    if (nonEmptyList(remote.reports)) {
+      reports.value = remote.reports as MockReport[]
+      changed = true
+    }
+    if (nonEmptyList(remote.gapPlan)) {
+      gapPlan.value = remote.gapPlan as GapTask[]
+      changed = true
+    }
+    if (remote.gapGeneratedAt) {
+      gapGeneratedAt.value = remote.gapGeneratedAt
+      changed = true
+    }
+    if (nonEmptyList(remote.doneTaskIds)) {
+      doneTaskIds.value = remote.doneTaskIds as string[]
+      changed = true
+    }
+    if (remote.doneTaskDate) {
+      doneTaskDate.value = remote.doneTaskDate
+      changed = true
+    }
+    if (nonEmptyMap(remote.radarBoost)) {
+      radarBoost.value = remote.radarBoost as Record<string, number>
+      changed = true
+    }
+    if (changed) flushLocal()
   }
 
   function applyState(s: StudyState) {
@@ -119,7 +185,11 @@ export const useStudyStore = defineStore('study', () => {
 
   function switchDomain(next: DomainId) {
     if (next === boundDomain) return
-    flush()
+    const prev = boundDomain
+    flushLocal()
+    scheduleRemotePush(`study:${prev}`, () => {
+      void pushRemote(prev)
+    })
     boundDomain = next
     applyState(loadDomainStudy(next))
   }
@@ -397,5 +467,6 @@ export const useStudyStore = defineStore('study', () => {
     recordPracticeError,
     boostRadar,
     switchDomain,
+    applyRemoteSnapshot,
   }
 })

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { scheduleRemotePush } from '@/api/syncGate'
 import { getDomain, isDomainId } from '@/domains/registry'
 import type { DomainId } from '@/domains/types'
 import type { ExamLevel, ExamMemory, OfficialScore, TargetScore } from '@/types'
@@ -117,8 +118,40 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  function flush() {
+  /** 只写 localStorage，不推远端（启动拉云时用） */
+  function flushLocal() {
     persist(snapshot())
+  }
+
+  function flush() {
+    flushLocal()
+    scheduleRemotePush('profile', () => {
+      void pushRemote()
+    })
+  }
+
+  /** 推送到服务端；失败静默（本地仍可用） */
+  async function pushRemote() {
+    try {
+      const { saveProfile } = await import('@/api/sync')
+      await saveProfile({
+        onboarded: onboarded.value,
+        name: name.value,
+        birthday: birthday.value,
+        motto: motto.value,
+        level: level.value,
+        targetScore: targetScore.value,
+        examDate: examDate.value,
+        streak: streak.value,
+        lastStudyDate: lastStudyDate.value,
+        activeDomainId: activeDomainId.value,
+        domainLevels: { ...domainLevels.value } as Record<string, string>,
+        officialScore: officialScore.value,
+        examMemory: examMemory.value,
+      })
+    } catch {
+      /* offline / 后端未起 */
+    }
   }
 
   function setActiveDomain(id: DomainId) {
@@ -241,6 +274,7 @@ export const useUserStore = defineStore('user', () => {
     setDomainLevel,
     completeOnboarding,
     updateProfile,
+    flushLocal,
     markStudy,
     saveMemory,
     saveOfficial,

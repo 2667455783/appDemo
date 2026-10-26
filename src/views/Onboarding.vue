@@ -43,7 +43,7 @@ function submit() {
   <div class="page full">
     <p class="brand">学习宝典</p>
     <h1 class="page-title">多学科学习，<br />从每日打卡开始。</h1>
-    <p class="page-sub">先选学科与目标，今日任务会跟着变。英语已开放；编程、医药内容筹备中。</p>
+    <p class="page-sub">先选学科与目标，今日任务会跟着变。英语与编程练习已开放；医药内容筹备中。</p>
 
     <div class="stack" style="margin-top: 22px">
       <div class="field">
@@ -98,6 +98,9 @@ function submit() {
           <input v-model="form.examDate" type="date" />
         </div>
       </template>
+      <p v-else-if="form.domainId === 'programming'" class="page-sub">
+        编程「练习」已开放多语言沙箱；「学习」知识点仍在筹备。随时可在「我的」切换学科。
+      </p>
       <p v-else class="page-sub">该学科内容筹备中，进入后可先熟悉界面，随时在「我的」切回英语。</p>
       <button class="btn primary block" type="button" @click="submit">开始学习</button>
       <p class="muted" style="text-align: center">学习进度按学科分别保存，互不影响。</p>

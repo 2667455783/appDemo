@@ -26,6 +26,13 @@ import {
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
+import {
+  bumpSemver,
+  readCurrentVersions,
+  readPrevManifest,
+  today,
+  writeAllVersions,
+} from './lib/app-version.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '..')
@@ -196,66 +203,37 @@ function assembleAndroidApk() {
   run(`${gradlew} assembleDebug --no-daemon`, androidDir)
 }
 
-function bumpSemver(v) {
-  const parts = v.split('.').map((n) => parseInt(n, 10) || 0)
-  while (parts.length < 3) parts.push(0)
-  parts[2] += 1
-  return parts.join('.')
-}
-
-function today() {
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
-
-// ---- 读当前版本 ----
-const pkgPath = join(root, 'package.json')
-const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
-const gradlePath = join(root, 'android/app/build.gradle')
-let gradle = readFileSync(gradlePath, 'utf-8')
-const vitePath = join(root, 'vite.config.ts')
-let vite = readFileSync(vitePath, 'utf-8')
-
-const codeMatch = gradle.match(/versionCode\s+(\d+)/)
-let versionCode = codeMatch ? Number(codeMatch[1]) : 1
-let version = pkg.version || '1.0.0'
+// ---- 读当前版本（同步写入 Android + iOS + Vite）----
+let { version, versionCode } = readCurrentVersions(root)
+const teamId = String(cfg.iosTeamId || '').trim()
 
 if (!noBump) {
   version = bumpSemver(version)
   versionCode += 1
-  pkg.version = version
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
-
-  gradle = gradle
-    .replace(/versionCode\s+\d+/, `versionCode ${versionCode}`)
-    .replace(/versionName\s+"[^"]+"/, `versionName "${version}"`)
-  writeFileSync(gradlePath, gradle)
-
-  if (/const APP_VERSION_CODE\s*=\s*\d+/.test(vite)) {
-    vite = vite.replace(/const APP_VERSION_CODE\s*=\s*\d+/, `const APP_VERSION_CODE = ${versionCode}`)
-  } else {
-    console.warn('警告：vite.config.ts 未找到 APP_VERSION_CODE，请手动同步')
-  }
-  writeFileSync(vitePath, vite)
+  writeAllVersions(root, { version, versionCode, teamId })
   console.log(`版本已升至 ${version} (versionCode ${versionCode})`)
 } else {
+  writeAllVersions(root, { version, versionCode, teamId })
   console.log(`保持版本 ${version} (versionCode ${versionCode})`)
 }
 
 const apkFileName = String(cfg.apkNamePattern || 'app-{version}.apk').replace('{version}', version)
 const apkUrl = `${cfg.publicBase.replace(/\/$/, '')}/${apkFileName}`
+const publicUpdatePath = join(root, 'public/update.json')
+const prevManifest = readPrevManifest(publicUpdatePath)
 const manifest = {
   version,
   versionCode,
   apkUrl,
+  ...(typeof prevManifest.ipaUrl === 'string' && prevManifest.ipaUrl.trim()
+    ? { ipaUrl: prevManifest.ipaUrl }
+    : {}),
   notes,
   publishedAt: today(),
   force: false,
 }
 
-const publicUpdate = join(root, 'public/update.json')
-writeFileSync(publicUpdate, JSON.stringify(manifest, null, 2) + '\n')
+writeFileSync(publicUpdatePath, JSON.stringify(manifest, null, 2) + '\n')
 console.log('已写入 public/update.json')
 
 // ---- 构建 ----

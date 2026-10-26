@@ -1,8 +1,8 @@
 {
-  "version": "1.0.27",
-  "versionCode": 28,
+  "version": "1.0.29",
+  "versionCode": 30,
   "apkUrl": "http://134.175.54.151/englishStudy/学习宝典.apk",
-  "notes": "应用更名为学习宝典，更换新图标；支持多学科切换（英语/编程/医药）",
-  "publishedAt": "2026-10-22",
+  "notes": "同步近期功能更新",
+  "publishedAt": "2026-10-26",
   "force": false
 }

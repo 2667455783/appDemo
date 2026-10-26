@@ -6,17 +6,20 @@ import { Keyboard, KeyboardResize } from '@capacitor/keyboard'
 import App from './App.vue'
 import router from './router'
 import './style.css'
+import { syncOnLaunch } from '@/api/bootstrap'
 import { warmupWebVoices } from '@/utils/audio'
 import { initTracking } from '@/utils/tracking/tracking-init'
 
 initTracking()
 
 const app = createApp(App)
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
 app.mount('#app')
 
 warmupWebVoices()
+void syncOnLaunch()
 
 if (Capacitor.isNativePlatform()) {
   StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {})
