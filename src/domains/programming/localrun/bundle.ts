@@ -12,11 +12,14 @@ import {
   buildUniCompatPlan,
   isUniAppProject,
 } from '@/domains/programming/localrun/uniCompat'
+import { embedLocalAssets } from '@/domains/programming/localrun/fromLocalFiles'
 
 export type LocalProject = {
   files: Record<string, string>
   /** 远程 raw 根地址，图片等未拉取的资源从这里加载 */
   assetBase?: string
+  /** 优先作为预览入口的 HTML（如当前编辑中的文件） */
+  openFile?: string
 }
 
 /** 运行面板用：附带标题与默认打开的文件 */
@@ -143,8 +146,22 @@ function jsonForHtml(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c')
 }
 
+/** 选入口 HTML：当前打开的文件 > index.html > public/index.html > 任意 html（路径更短优先） */
+function pickHtmlEntry(files: Record<string, string>, preferred?: string): string {
+  const prefer = preferred ? normalizePath(preferred) : ''
+  if (prefer && /\.html?$/i.test(prefer) && files[prefer] != null) return prefer
+  if (files['index.html'] != null) return 'index.html'
+  if (files['public/index.html'] != null) return 'public/index.html'
+  const htmls = Object.keys(files).filter((p) => /\.html?$/i.test(p))
+  if (!htmls.length) return ''
+  return htmls.sort(
+    (a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b, 'en'),
+  )[0]!
+}
+
 export async function buildLocalBundle(project: LocalProject, opts: BundleOptions): Promise<LocalBundle> {
-  const files = { ...project.files }
+  // 个人项目 zip 里的图片常以 data URL 存盘，运行前把 HTML/CSS 相对路径内联进去
+  const files = embedLocalAssets({ ...project.files })
   const { assetBase } = project
   const compilers = opts.compilers ?? (await loadCompilers())
   const warnings: string[] = []
@@ -169,8 +186,8 @@ export async function buildLocalBundle(project: LocalProject, opts: BundleOption
   }
   const assetUrl = (path: string) => (assetBase ? assetBase + encodePath(path) : '')
 
-  /** —— index.html —— */
-  const htmlPath = files['index.html'] != null ? 'index.html' : files['public/index.html'] != null ? 'public/index.html' : ''
+  /** —— HTML 入口（支持子目录里的任意 .html） —— */
+  const htmlPath = pickHtmlEntry(files, project.openFile)
   const htmlDir = htmlPath ? dirname(htmlPath) : ''
   let html = htmlPath
     ? files[htmlPath]!.replace(/<%[=-]?[\s\S]*?%>/g, '').replace(/%(PUBLIC_URL|BASE_URL|VITE_[A-Z0-9_]+)%/g, '')
@@ -221,9 +238,10 @@ export async function buildLocalBundle(project: LocalProject, opts: BundleOption
     entries.push(uniPlan.entry)
   }
   if (!entries.length && !htmlPath) {
-    const sample = allPaths.slice(0, 8).join('、') || '（无）'
+    const htmlSample = allPaths.filter((p) => /\.html?$/i.test(p)).slice(0, 6)
+    const sample = (htmlSample.length ? htmlSample : allPaths.slice(0, 8)).join('、') || '（无）'
     throw new Error(
-      `没找到入口：需要 index.html，或 src/main.(ts|js) / src/index.(tsx|jsx|js)。当前文件：${sample}`,
+      `没找到入口：请打开一个 .html 文件再运行，或提供 index.html / src/main.(ts|js)。当前文件：${sample}`,
     )
   }
 

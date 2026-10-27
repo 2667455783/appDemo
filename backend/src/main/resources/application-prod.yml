@@ -1,0 +1,9 @@
+# 线上 profile：仅本机监听，由 nginx 反代 /api/
+server:
+  address: 127.0.0.1
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    root: info
+    org.hibernate.SQL: warn

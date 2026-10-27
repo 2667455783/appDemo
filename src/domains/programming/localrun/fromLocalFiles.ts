@@ -58,7 +58,7 @@ function readAsDataUrl(file: File): Promise<string> {
 }
 
 /** 把 HTML/CSS 里指向本地二进制资源的相对路径换成 data URL，便于 srcdoc 预览 */
-function embedLocalAssets(files: Record<string, string>): Record<string, string> {
+export function embedLocalAssets(files: Record<string, string>): Record<string, string> {
   const dataFiles = Object.keys(files).filter((p) => files[p]!.startsWith('data:'))
   if (!dataFiles.length) return files
 

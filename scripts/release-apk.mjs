@@ -183,6 +183,16 @@ function resolveSshTools(env) {
 }
 
 const buildEnv = ensureAndroidEnv()
+// 真机包必须指向线上 API；可用环境变量覆盖 release.config.json
+const apiBase = String(process.env.VITE_API_BASE || cfg.apiBase || '')
+  .trim()
+  .replace(/\/$/, '')
+if (apiBase) {
+  buildEnv.VITE_API_BASE = apiBase
+  console.log(`发版将注入 VITE_API_BASE=${apiBase}`)
+} else {
+  console.warn('未配置 apiBase / VITE_API_BASE：真机将无法访问线上后端')
+}
 const { ssh: sshBin, scp: scpBin } = resolveSshTools(buildEnv)
 
 function run(cmd, cwd = root) {

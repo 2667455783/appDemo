@@ -66,6 +66,11 @@ const router = createRouter({
       meta: { tab: true },
     },
     {
+      path: '/d/programming/examples',
+      component: () => import('@/views/programming/ExamplePractice.vue'),
+      meta: { tab: true },
+    },
+    {
       path: '/d/programming/workbench',
       component: () => import('@/views/programming/Workbench.vue'),
       meta: { tab: false },

@@ -16,9 +16,9 @@ export const programmingManifest: DomainManifest = {
   ],
   homeShortcuts: [
     { label: '学习', desc: '知识点筹备中', route: '/d/programming/learn' },
-    { label: '练习', desc: '工作台 / 片段沙箱', route: '/d/programming/practice' },
+    { label: '练习', desc: '示例练习 / 项目工作台', route: '/d/programming/practice' },
   ],
-  homePhaseText: () => '练习 Tab：可进项目工作台拉 Git 本地运行，或用片段沙箱练语法。',
+  homePhaseText: () => '练习 Tab：可进示例练习练语法，或进项目工作台拉 Git 本地运行。',
   reminderHint: '到点提醒学习，进程关掉也能弹',
   buildTodayTasks: (ctx) => [
     {

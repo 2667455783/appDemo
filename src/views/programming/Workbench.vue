@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   deleteGitRepo,
@@ -12,9 +12,16 @@ import {
 } from '@/api/gitWorkspace'
 import { ApiError } from '@/api/http'
 import AppDialog from '@/components/AppDialog.vue'
-import PageHeader from '@/components/PageHeader.vue'
+import AppIcon from '@/components/AppIcon.vue'
+import FileSourceSheet from '@/components/FileSourceSheet.vue'
 import type { LocalRunProject } from '@/domains/programming/localrun/bundle'
 import { filesFromFileList } from '@/domains/programming/localrun/fromLocalFiles'
+import {
+  canUseNativeFilePick,
+  pickDeviceFiles,
+  shouldOfferFileSourceSheet,
+  type FilePickSource,
+} from '@/services/pickDeviceFile'
 import {
   fetchPublicRepo,
   isGitAuthRequiredError,
@@ -35,34 +42,40 @@ import {
   type ParsedRepo,
 } from '@/domains/programming/stackblitz/parseRepo'
 import {
-  STARTERS,
   buildStarterProject,
   defaultOpenFile,
   type StarterId,
 } from '@/domains/programming/stackblitz/templates'
 import { useStudyStore } from '@/stores/study'
 import { useUserStore } from '@/stores/user'
-import FileTree from '@/views/programming/FileTree.vue'
+import LocalRunPanel from '@/views/programming/LocalRunPanel.vue'
 
-type IdeTab = 'run' | 'files' | 'scm'
 type ScmSub = 'changes' | 'history'
 type OpenTarget = { kind: 'git' | 'starter'; value: string }
 type RunFocus = 'preview' | 'code' | 'console' | ''
-
-const LocalRunPanel = defineAsyncComponent(() => import('@/views/programming/LocalRunPanel.vue'))
 
 const router = useRouter()
 const user = useUserStore()
 const study = useStudyStore()
 
-const ideTab = ref<IdeTab>('scm')
+const runPanelRef = ref<{
+  openGit: () => void
+  openTree: () => void
+  closeTree: () => void
+  openFilesAction: (action?: '' | 'templates' | 'upload') => void
+} | null>(null)
 const scmSub = ref<ScmSub>('changes')
 const showCloneForm = ref(false)
-const showInitPick = ref(false)
-const showUploadPanel = ref(false)
 const showBranchPicker = ref(false)
 const localFileInput = ref<HTMLInputElement | null>(null)
 const localFolderInput = ref<HTMLInputElement | null>(null)
+const fileSourceOpen = ref(false)
+const fileSourceKind = ref<'files' | 'folder'>('files')
+const fileSourceHint = computed(() =>
+  fileSourceKind.value === 'folder'
+    ? '手机端请多选文件夹内的文件（系统不一定支持直接选文件夹）'
+    : '可从微信聊天记录或手机存储中选择网页/代码文件',
+)
 const linkedRepo = ref<{ label: string; provider: string } | null>(null)
 const lastOpen = ref<OpenTarget | null>(null)
 const localProject = ref<LocalRunProject | null>(null)
@@ -150,23 +163,10 @@ function handleGitErr(err: unknown, retry: () => Promise<void>) {
   sbError.value = msg
 }
 
-const projectPaths = computed(() =>
-  localProject.value
-    ? Object.keys(localProject.value.files)
-        .filter((p) => !p.startsWith('__localrun_'))
-        .sort()
-    : [],
-)
-const projectRootLabel = computed(() => {
-  if (!localProject.value) return 'PROJECT'
-  const t = localProject.value.title
-  const leaf = t.includes('·')
-    ? t.slice(t.indexOf('·') + 1).trim()
-    : t.includes('/')
-      ? t.slice(t.lastIndexOf('/') + 1)
-      : t
-  return (leaf || t || 'PROJECT').toUpperCase()
-})
+function showScm() {
+  void nextTick(() => runPanelRef.value?.openGit())
+}
+
 const scmEnabled = computed(() => !!linkedRepo.value && linkedRepo.value.provider !== 'local')
 const scmFooterLeft = computed(() => (linkedRepo.value ? linkedRepo.value.label : '未启用版本控制'))
 const scmFooterRight = computed(() => {
@@ -312,11 +312,9 @@ function applyCachedRepoDetailFrom(detail: CachedDetail) {
   })
   rememberLastGitRepo(detail.id)
   showCloneForm.value = false
-  showInitPick.value = false
-  showUploadPanel.value = false
-  runFocus.value = 'preview'
-  ideTab.value = 'run'
+  runFocus.value = 'code'
   scmSub.value = 'changes'
+  runPanelRef.value?.closeTree()
   const n = Object.keys(project.files).filter((p) => !p.startsWith('__localrun_')).length
   sbStatus.value = `已从缓存打开 · ${detail.currentBranch} · ${n} 个文件`
   sbError.value = ''
@@ -340,26 +338,24 @@ async function openLocal(target: OpenTarget | null = lastOpen.value, opts: { for
     let project: LocalRunProject
     if (target.kind === 'starter') {
       const id = target.value as StarterId
+      const starter = buildStarterProject(id)
       project = {
-        title: `本地模板 · ${STARTERS.find((s) => s.id === id)?.label ?? id}`,
-        files: buildStarterProject(id).files,
+        title: starter.title,
+        files: starter.files,
         openFile: defaultOpenFile(id),
       }
-      linkedRepo.value = { label: `本地 · ${id}`, provider: 'local' }
+      linkedRepo.value = { label: starter.title, provider: 'local' }
       activeRepoId.value = null
       activeParsed.value = null
       currentBranch.value = ''
       cachedBranches.value = []
       rememberLastGitRepo(null)
       applyProject(project)
-      // 模板直接进运行预览，避免停在文件树/代码页误以为按钮点不了
       lastOpen.value = target
-      runFocus.value = 'preview'
-      ideTab.value = 'run'
+      runFocus.value = 'code'
       showCloneForm.value = false
-      showInitPick.value = false
-      showUploadPanel.value = false
-      sbStatus.value = `已打开 ${STARTERS.find((s) => s.id === id)?.label ?? id} 模板`
+      runPanelRef.value?.closeTree()
+      sbStatus.value = `已打开 ${starter.title} 项目模板`
       return
     } else {
       const parsed = parseGitRepoInput(target.value)
@@ -412,14 +408,12 @@ async function openLocal(target: OpenTarget | null = lastOpen.value, opts: { for
       }
     }
     lastOpen.value = target
-    runFocus.value = ''
-    ideTab.value = 'files'
+    runFocus.value = 'code'
     showCloneForm.value = false
-    showInitPick.value = false
-    showUploadPanel.value = false
+    runPanelRef.value?.closeTree()
     const n = Object.keys(project.files).filter((p) => !p.startsWith('__localrun_')).length
     if (!sbStatus.value.includes('缓存') && !sbStatus.value.includes('定位') && !sbStatus.value.includes('未写入')) {
-      sbStatus.value = `已拉取 ${n} 个文件${project.title.includes('·') ? ` · ${project.title}` : ''}，可在资源管理器中浏览`
+      sbStatus.value = `已拉取 ${n} 个文件${project.title.includes('·') ? ` · ${project.title}` : ''}，点「运行」可预览`
     }
   } catch (err) {
     sbStatus.value = '打开失败'
@@ -494,10 +488,8 @@ async function removeCachedRepo(id: number) {
 
 function openHistoryTab() {
   scmSub.value = 'history'
-  ideTab.value = 'scm'
   showCloneForm.value = false
-  showInitPick.value = false
-  showUploadPanel.value = false
+  showScm()
   void refreshCachedRepos()
 }
 
@@ -571,7 +563,7 @@ async function checkoutBranch(branch: string) {
       sbStatus.value = `已拉取并切换到 ${branch}`
     }
     await refreshCachedRepos()
-    ideTab.value = 'files'
+    runPanelRef.value?.closeTree()
   } catch (err) {
     sbStatus.value = '切分支失败'
     handleGitErr(err, () => checkoutBranch(branch))
@@ -609,8 +601,7 @@ onMounted(async () => {
   }
   if (cachedRepos.value.length) {
     scmSub.value = 'history'
-    ideTab.value = 'scm'
-    sbStatus.value = `有 ${cachedRepos.value.length} 个历史仓库，点开即可继续，无需重新拉取`
+    sbStatus.value = `有 ${cachedRepos.value.length} 个历史仓库，打开资源管理器 → 版本库可继续`
   }
 })
 
@@ -620,19 +611,25 @@ function onLocalRan(ok: boolean) {
   study.completeTask('prog-practice')
 }
 
-function onExplorerSelect(path: string) {
-  explorerPath.value = path
-  runFocus.value = 'code'
-  ideTab.value = 'run'
-}
-
-function openRunPreview() {
-  runFocus.value = 'preview'
-  ideTab.value = 'run'
-}
-
 function startStarter(id: StarterId) {
   void openLocal({ kind: 'starter', value: id })
+}
+
+function onOpenSavedProject(project: LocalRunProject) {
+  linkedRepo.value = { label: project.title || '个人项目', provider: 'local' }
+  activeRepoId.value = null
+  activeParsed.value = null
+  currentBranch.value = ''
+  cachedBranches.value = []
+  rememberLastGitRepo(null)
+  lastOpen.value = null
+  applyProject(project)
+  runFocus.value = 'code'
+  showCloneForm.value = false
+  runPanelRef.value?.closeTree()
+  const n = Object.keys(project.files).filter((p) => !p.startsWith('__localrun_')).length
+  sbStatus.value = `已打开个人项目 · ${n} 个文件，点「运行」可预览`
+  sbError.value = ''
 }
 
 function loadGitRepo(pathOrUrl?: string) {
@@ -643,7 +640,7 @@ function loadGitRepo(pathOrUrl?: string) {
       '请输入仓库地址，例如：\nhttps://github.com/user/repo\nhttps://gitee.com/user/repo\nhttps://gitlab.com/user/repo\n（私有仓会提示填写访问令牌）'
     sbStatus.value = ''
     showCloneForm.value = true
-    ideTab.value = 'scm'
+    showScm()
     return
   }
   gitInput.value = raw
@@ -656,43 +653,31 @@ function useExample(url: string) {
   loadGitRepo(url)
 }
 
-function onInitRepo() {
-  showInitPick.value = true
-  showCloneForm.value = false
-  showUploadPanel.value = false
-  scmSub.value = 'changes'
-}
-
 function onCloneRemote() {
   showCloneForm.value = true
-  showInitPick.value = false
-  showUploadPanel.value = false
   scmSub.value = 'changes'
   sbError.value = ''
-}
-
-function onUploadLocal() {
-  showUploadPanel.value = true
-  showCloneForm.value = false
-  showInitPick.value = false
-  scmSub.value = 'changes'
-  sbError.value = ''
-  sbStatus.value = ''
 }
 
 function pickLocalFiles() {
+  if (shouldOfferFileSourceSheet()) {
+    fileSourceKind.value = 'files'
+    fileSourceOpen.value = true
+    return
+  }
   localFileInput.value?.click()
 }
 
 function pickLocalFolder() {
+  if (shouldOfferFileSourceSheet()) {
+    fileSourceKind.value = 'folder'
+    fileSourceOpen.value = true
+    return
+  }
   localFolderInput.value?.click()
 }
 
-async function onLocalFilesChosen(ev: Event) {
-  const input = ev.target as HTMLInputElement
-  // FileList 是活列表：必须先拷贝再清空，否则 value='' 会把刚选的文件清掉，表现为选完没反应
-  const list = Array.from(input.files ?? [])
-  input.value = ''
+async function ingestLocalFiles(list: File[]) {
   if (!list.length) return
   if (sbBusy.value) {
     sbStatus.value = '请稍候，当前有任务正在进行…'
@@ -718,19 +703,45 @@ async function onLocalFilesChosen(ev: Event) {
     lastOpen.value = null
     applyProject(project)
     showCloneForm.value = false
-    showInitPick.value = false
-    showUploadPanel.value = false
-    runFocus.value = 'preview'
-    ideTab.value = 'run'
+    runFocus.value = 'code'
+    runPanelRef.value?.closeTree()
     const n = Object.keys(project.files).filter((p) => !p.startsWith('__localrun_')).length
-    sbStatus.value = `已加载本地 ${n} 个文件，可预览`
+    sbStatus.value = `已加载本地 ${n} 个文件，点「运行」可预览`
   } catch (err) {
     sbStatus.value = '本地上传失败'
     sbError.value = err instanceof Error ? err.message : String(err)
-    ideTab.value = 'scm'
-    showUploadPanel.value = true
+    runPanelRef.value?.openFilesAction('upload')
   } finally {
     sbBusy.value = false
+  }
+}
+
+async function onLocalFilesChosen(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  // FileList 是活列表：必须先拷贝再清空，否则 value='' 会把刚选的文件清掉，表现为选完没反应
+  const list = Array.from(input.files ?? [])
+  input.value = ''
+  await ingestLocalFiles(list)
+}
+
+async function onFileSourcePicked(source: FilePickSource) {
+  sbError.value = ''
+  if (!canUseNativeFilePick()) {
+    if (fileSourceKind.value === 'folder') localFolderInput.value?.click()
+    else localFileInput.value?.click()
+    return
+  }
+  try {
+    const list = await pickDeviceFiles({
+      source,
+      multiple: true,
+      mimeType: '*/*',
+    })
+    await ingestLocalFiles(list)
+  } catch (err) {
+    sbStatus.value = '本地上传失败'
+    sbError.value = err instanceof Error ? err.message : String(err)
+    runPanelRef.value?.openFilesAction('upload')
   }
 }
 
@@ -740,320 +751,239 @@ function refreshScm() {
     loadGitRepo(gitInput.value)
     return
   }
-  sbStatus.value = '暂无关联仓库，可克隆远程或初始化本地项目'
+  sbStatus.value = '暂无关联仓库，可在资源管理器初始化模板或克隆远程'
 }
 </script>
 
 <template>
-  <div class="page full workbench">
-    <PageHeader
-      title="项目工作台"
-      subtle="编程 · 资源管理器 / 本地运行"
-      @back="router.replace('/d/programming/practice')"
-    />
-
+  <div class="page full workbench immersive">
     <div class="ide">
-      <nav class="ide-rail" aria-label="工作区">
-        <button
-          class="ide-rail-btn"
-          :class="{ on: ideTab === 'run' }"
-          type="button"
-          title="运行"
-          @click="ideTab = 'run'"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M8 5v14l11-7L8 5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-          </svg>
-        </button>
-        <button
-          class="ide-rail-btn"
-          :class="{ on: ideTab === 'files' }"
-          type="button"
-          title="文件"
-          @click="ideTab = 'files'"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2h5.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </button>
-        <button
-          class="ide-rail-btn"
-          :class="{ on: ideTab === 'scm' }"
-          type="button"
-          title="版本库"
-          @click="ideTab = 'scm'"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="6" cy="6" r="2.2" stroke="currentColor" stroke-width="1.7" />
-            <circle cx="6" cy="18" r="2.2" stroke="currentColor" stroke-width="1.7" />
-            <circle cx="18" cy="12" r="2.2" stroke="currentColor" stroke-width="1.7" />
-            <path d="M6 8.2v7.6M8.2 6h5.3a2 2 0 0 1 2 2v2.5" stroke="currentColor" stroke-width="1.7" />
-            <path d="M15.8 12H18" stroke="currentColor" stroke-width="1.7" />
-          </svg>
-        </button>
-      </nav>
-
       <div class="ide-body">
-        <section v-if="ideTab === 'scm'" class="scm-panel">
-          <header class="scm-head">
-            <h2 class="scm-title">版本库</h2>
-            <div class="scm-head-actions">
-              <button class="icon-btn" type="button" title="克隆远程" @click="onCloneRemote">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.7" />
-                  <path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-                </svg>
-              </button>
-              <button class="icon-btn" type="button" title="刷新" :disabled="sbBusy" @click="refreshScm">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M20 12a8 8 0 1 1-2.3-5.6M20 5v5h-5"
-                    stroke="currentColor"
-                    stroke-width="1.7"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
-            </div>
-          </header>
-
-          <div class="scm-subs">
-            <button class="scm-sub" :class="{ on: scmSub === 'changes' }" type="button" @click="scmSub = 'changes'">
-              更改
-            </button>
-            <button
-              class="scm-sub"
-              :class="{ on: scmSub === 'history' }"
-              type="button"
-              @click="openHistoryTab"
-            >
-              历史记录{{ cachedRepos.length ? ` · ${cachedRepos.length}` : '' }}
-            </button>
-          </div>
-
-          <div class="scm-content">
-            <template v-if="scmSub === 'history'">
-              <p v-if="!cachedRepos.length" class="scm-empty-text">
-                还没有拉取记录。克隆远程仓库并成功缓存后，会出现在这里；刷新页面可直接打开，不必重新拉取。
-              </p>
-              <div v-else class="history-list">
-                <p class="clone-label">已缓存的仓库（点开即用）</p>
-                <div v-for="r in cachedRepos" :key="r.id" class="history-item" :class="{ on: r.id === activeRepoId }">
-                  <button
-                    class="history-main"
-                    type="button"
-                    :disabled="sbBusy"
-                    @click="restoreCachedRepo(r.id)"
-                  >
-                    <span class="t-title">{{ r.title || `${r.owner}/${r.repo}` }}</span>
-                    <span class="page-sub">
-                      {{ providerTitle(r.provider) }} · {{ r.currentBranch }} ·
-                      {{ r.cachedBranches?.length || 0 }} 个分支
-                    </span>
-                  </button>
-                  <button
-                    class="history-del"
-                    type="button"
-                    title="删除缓存"
-                    :disabled="sbBusy"
-                    @click="removeCachedRepo(r.id)"
-                  >
-                    删除
-                  </button>
-                </div>
-              </div>
-              <button class="scm-primary" type="button" :disabled="sbBusy" @click="onCloneRemote(); scmSub = 'changes'">
-                克隆新仓库
-              </button>
-              <button class="scm-secondary" type="button" :disabled="sbBusy" @click="onUploadLocal(); scmSub = 'changes'">
-                上传本地文件
-              </button>
-              <button class="scm-secondary" type="button" :disabled="sbBusy" @click="onInitRepo(); scmSub = 'changes'">
-                初始化本地模板
-              </button>
-            </template>
-            <template v-else-if="scmEnabled && !showCloneForm && !showInitPick && !showUploadPanel">
-              <p class="scm-linked">已关联：{{ linkedRepo?.label }}</p>
-              <div class="branch-bar">
-                <span class="branch-label">分支</span>
-                <button class="branch-chip" type="button" :disabled="sbBusy" @click="openBranchPicker">
-                  {{ currentBranch || '选择分支' }} ▾
-                </button>
-              </div>
-              <div v-if="showBranchPicker" class="branch-picker">
-                <p class="clone-label">签出到…</p>
-                <button
-                  v-for="b in remoteBranches.length ? remoteBranches : cachedBranches"
-                  :key="b"
-                  class="branch-item"
-                  type="button"
-                  :class="{ on: b === currentBranch, cached: cachedBranches.includes(b) }"
-                  :disabled="sbBusy"
-                  @click="checkoutBranch(b)"
-                >
-                  <span>{{ b }}</span>
-                  <span v-if="cachedBranches.includes(b)" class="branch-tag">已缓存</span>
-                </button>
-                <button class="scm-ghost tight block" type="button" @click="showBranchPicker = false">取消</button>
-              </div>
-              <p class="scm-empty-text">项目已缓存；切分支优先读库，未缓存再拉取。</p>
-              <button class="scm-primary" type="button" :disabled="sbBusy" @click="ideTab = 'run'">打开运行面板</button>
-              <button class="scm-secondary" type="button" :disabled="sbBusy" @click="openHistoryTab">历史仓库</button>
-              <button class="scm-secondary" type="button" :disabled="sbBusy" @click="refetchRemote">重新拉取远程</button>
-              <button class="scm-ghost" type="button" :disabled="sbBusy || !activeRepoId" @click="clearActiveCache">
-                清除本仓缓存
-              </button>
-            </template>
-            <template v-else>
-              <p class="scm-empty-text">
-                克隆远程仓库、上传本地 HTML/项目文件，或初始化模板；代码在 App 内编译预览。
-              </p>
-              <button
-                v-if="cachedRepos.length"
-                class="scm-secondary"
-                type="button"
-                :disabled="sbBusy"
-                @click="openHistoryTab"
-              >
-                查看历史仓库（{{ cachedRepos.length }}）
-              </button>
-              <button class="scm-primary" type="button" :disabled="sbBusy" @click="onCloneRemote">克隆远程仓库</button>
-              <button class="scm-secondary" type="button" :disabled="sbBusy" @click="onUploadLocal">上传本地文件</button>
-              <button class="scm-secondary" type="button" :disabled="sbBusy" @click="onInitRepo">初始化本地模板</button>
-
-              <div v-if="showCloneForm" class="clone-form">
-                <p class="clone-label">远程地址（GitHub / Gitee / GitLab）</p>
-                <input
-                  v-model="gitInput"
-                  class="clone-input"
-                  type="url"
-                  placeholder="https://gitee.com/user/repo"
-                  @keyup.enter="loadGitRepo()"
-                />
-                <div class="clone-actions">
-                  <button class="scm-primary" type="button" :disabled="sbBusy" @click="loadGitRepo()">拉取并运行</button>
-                </div>
-                <p class="clone-tip">
-                  支持公开与私有仓（私有仓将弹出访问令牌）。Vite Vue 3 / React / 静态页与 uni-app 简易 H5；子目录可写
-                  …/tree/main/web。
-                </p>
-                <div class="example-row">
-                  <button
-                    v-for="ex in GIT_EXAMPLES"
-                    :key="ex.url"
-                    class="ex-chip"
-                    type="button"
-                    :disabled="sbBusy"
-                    @click="useExample(ex.url)"
-                  >
-                    {{ ex.label }}
-                  </button>
-                </div>
-              </div>
-
-              <div v-if="showUploadPanel" class="clone-form">
-                <p class="clone-label">上传本地文件预览</p>
-                <div class="clone-actions">
-                  <button class="scm-primary" type="button" :disabled="sbBusy" @click="pickLocalFiles">选择文件</button>
-                  <button class="scm-secondary tight-upload" type="button" :disabled="sbBusy" @click="pickLocalFolder">
-                    选择文件夹
-                  </button>
-                </div>
-                <p class="clone-tip">
-                  可单选一个 .html，或一次多选 html/css/js；也可选整个文件夹。纯 HTML
-                  会立即预览；Vue / React 项目需包含入口文件。
-                </p>
-              </div>
-
-              <div v-if="showInitPick" class="init-pick">
-                <p class="clone-label">选择本地模板</p>
-                <button
-                  v-for="s in STARTERS"
-                  :key="s.id"
-                  class="init-item"
-                  type="button"
-                  :disabled="sbBusy"
-                  @click="startStarter(s.id)"
-                >
-                  <span class="t-title">{{ s.label }}</span>
-                  <span class="page-sub">{{ s.desc }}</span>
-                </button>
-              </div>
-            </template>
-
-            <p v-if="sbStatus" class="scm-status" :class="{ bad: !!sbError }">{{ sbStatus }}</p>
-            <p v-if="sbError" class="scm-err">{{ sbError }}</p>
-          </div>
-
-          <footer class="scm-foot">
-            <span class="scm-foot-left">
-              <span class="scm-dot" :class="{ on: scmEnabled }" />
-              {{ scmFooterLeft }}
-            </span>
-            <span class="scm-foot-right">{{ scmFooterRight }}</span>
-          </footer>
-        </section>
-
-        <section v-if="ideTab === 'files'" class="files-panel">
-          <template v-if="localProject">
-            <header class="scm-head" style="margin-bottom: 8px">
-              <h2 class="scm-title">资源管理器</h2>
-              <div class="scm-head-actions">
-                <button class="scm-primary tight" type="button" @click="openRunPreview">运行预览</button>
-              </div>
-            </header>
-            <p class="explorer-meta">{{ localProject.title }} · {{ projectPaths.length }} 个文件</p>
-            <div class="explorer-box">
-              <FileTree
-                :paths="projectPaths"
-                :root-label="projectRootLabel"
-                :selected="explorerPath"
-                :expand-to="explorerPath"
-                @select="onExplorerSelect"
-              />
-            </div>
-            <p class="clone-tip" style="margin-top: 10px">点击文件可打开代码编辑；点「运行预览」查看页面效果。</p>
-          </template>
-          <template v-else>
-            <h2 class="scm-title" style="margin-bottom: 12px">快速创建</h2>
-            <div class="starter-row">
-              <div v-for="s in STARTERS" :key="s.id" class="starter-card themed">
-                <p class="t-title">{{ s.label }}</p>
-                <p class="page-sub">{{ s.desc }}</p>
-                <div class="starter-actions">
-                  <button class="scm-primary tight" type="button" :disabled="sbBusy" @click="startStarter(s.id)">
-                    本地运行
-                  </button>
-                </div>
-              </div>
-            </div>
-          </template>
-        </section>
-
-        <section v-if="ideTab === 'run'" class="run-panel">
+        <section class="run-panel">
           <div class="run-stage">
             <div class="run-main">
               <LocalRunPanel
-                v-if="localProject"
-                :key="localProject.title"
+                ref="runPanelRef"
+                :key="localProject?.title || 'empty'"
                 :project="localProject"
                 :open-path="explorerPath"
                 :focus-view="runFocus"
                 :repo-id="activeRepoId"
                 :branch="currentBranch"
+                :repo-label="linkedRepo?.label"
+                :busy="sbBusy"
                 @ran="onLocalRan"
                 @update:open-path="explorerPath = $event"
                 @files-dirty="onFilesDirty"
-              />
-              <p v-else class="sb-placeholder">
-                从「版本库」克隆仓库、上传本地 HTML，或在「文件」里选模板，即可在 App 内编译预览。
-              </p>
+                @create-starter="startStarter"
+                @upload-local="pickLocalFiles"
+                @upload-local-folder="pickLocalFolder"
+                @open-saved-project="onOpenSavedProject"
+                @leave="router.replace('/d/programming/practice')"
+              >
+                <template #git>
+                  <section class="scm-panel embedded">
+                    <header class="scm-head">
+                      <h2 class="scm-title">版本库</h2>
+                      <div class="scm-head-actions">
+                        <button class="icon-btn" type="button" title="克隆远程" @click="onCloneRemote">
+                          <AppIcon name="cloud-download" :size="16" />
+                        </button>
+                        <button class="icon-btn" type="button" title="刷新" :disabled="sbBusy" @click="refreshScm">
+                          <AppIcon name="reload" :size="16" />
+                        </button>
+                        <button class="icon-btn" type="button" title="关闭" @click="runPanelRef?.closeTree()">
+                          <AppIcon name="close" :size="16" />
+                        </button>
+                      </div>
+                    </header>
+
+                    <div class="scm-subs">
+                      <button
+                        class="scm-sub"
+                        :class="{ on: scmSub === 'changes' }"
+                        type="button"
+                        @click="scmSub = 'changes'"
+                      >
+                        更改
+                      </button>
+                      <button
+                        class="scm-sub"
+                        :class="{ on: scmSub === 'history' }"
+                        type="button"
+                        @click="openHistoryTab"
+                      >
+                        历史记录{{ cachedRepos.length ? ` · ${cachedRepos.length}` : '' }}
+                      </button>
+                    </div>
+
+                    <div class="scm-content">
+                      <template v-if="scmSub === 'history'">
+                        <p v-if="!cachedRepos.length" class="scm-empty-text">
+                          还没有拉取记录。
+                        </p>
+                        <div v-else class="history-list">
+                          <p class="clone-label">已缓存的仓库（点开即用）</p>
+                          <div
+                            v-for="r in cachedRepos"
+                            :key="r.id"
+                            class="history-item"
+                            :class="{ on: r.id === activeRepoId }"
+                          >
+                            <button
+                              class="history-main"
+                              type="button"
+                              :disabled="sbBusy"
+                              @click="restoreCachedRepo(r.id)"
+                            >
+                              <span class="t-title">{{ r.title || `${r.owner}/${r.repo}` }}</span>
+                              <span class="page-sub">
+                                {{ providerTitle(r.provider) }} · {{ r.currentBranch }} ·
+                                {{ r.cachedBranches?.length || 0 }} 个分支
+                              </span>
+                            </button>
+                            <button
+                              class="history-del"
+                              type="button"
+                              title="删除缓存"
+                              :disabled="sbBusy"
+                              @click="removeCachedRepo(r.id)"
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
+                        <button
+                          class="scm-primary"
+                          type="button"
+                          :disabled="sbBusy"
+                          @click="onCloneRemote(); scmSub = 'changes'"
+                        >
+                          克隆新仓库
+                        </button>
+                      </template>
+                      <template v-else-if="scmEnabled && !showCloneForm">
+                        <p class="scm-linked">已关联：{{ linkedRepo?.label }}</p>
+                        <div class="branch-bar">
+                          <span class="branch-label">分支</span>
+                          <button class="branch-chip" type="button" :disabled="sbBusy" @click="openBranchPicker">
+                            {{ currentBranch || '选择分支' }} ▾
+                          </button>
+                        </div>
+                        <div v-if="showBranchPicker" class="branch-picker">
+                          <p class="clone-label">签出到…</p>
+                          <button
+                            v-for="b in remoteBranches.length ? remoteBranches : cachedBranches"
+                            :key="b"
+                            class="branch-item"
+                            type="button"
+                            :class="{ on: b === currentBranch, cached: cachedBranches.includes(b) }"
+                            :disabled="sbBusy"
+                            @click="checkoutBranch(b)"
+                          >
+                            <span>{{ b }}</span>
+                            <span v-if="cachedBranches.includes(b)" class="branch-tag">已缓存</span>
+                          </button>
+                          <button class="scm-ghost tight block" type="button" @click="showBranchPicker = false">
+                            取消
+                          </button>
+                        </div>
+                        <p class="scm-empty-text">项目已缓存；切分支优先读库，未缓存再拉取。</p>
+                        <button
+                          class="scm-primary"
+                          type="button"
+                          :disabled="sbBusy"
+                          @click="runPanelRef?.closeTree()"
+                        >
+                          回到编辑器
+                        </button>
+                        <button class="scm-secondary" type="button" :disabled="sbBusy" @click="openHistoryTab">
+                          历史仓库
+                        </button>
+                        <button class="scm-secondary" type="button" :disabled="sbBusy" @click="refetchRemote">
+                          重新拉取远程
+                        </button>
+                        <button
+                          class="scm-ghost"
+                          type="button"
+                          :disabled="sbBusy || !activeRepoId"
+                          @click="clearActiveCache"
+                        >
+                          清除本仓缓存
+                        </button>
+                      </template>
+                      <template v-else>
+                        <p class="scm-empty-text">
+                          在此克隆远程仓库；初始化模板与上传本地文件请到「资源管理器」。
+                        </p>
+                        <button
+                          v-if="cachedRepos.length"
+                          class="scm-secondary"
+                          type="button"
+                          :disabled="sbBusy"
+                          @click="openHistoryTab"
+                        >
+                          查看历史仓库（{{ cachedRepos.length }}）
+                        </button>
+                        <button class="scm-primary" type="button" :disabled="sbBusy" @click="onCloneRemote">
+                          克隆远程仓库
+                        </button>
+                        <button
+                          class="scm-secondary"
+                          type="button"
+                          :disabled="sbBusy"
+                          @click="runPanelRef?.openFilesAction()"
+                        >
+                          打开资源管理器
+                        </button>
+
+                        <div v-if="showCloneForm" class="clone-form">
+                          <p class="clone-label">远程地址（GitHub / Gitee / GitLab）</p>
+                          <input
+                            v-model="gitInput"
+                            class="clone-input"
+                            type="url"
+                            placeholder="https://gitee.com/user/repo"
+                            @keyup.enter="loadGitRepo()"
+                          />
+                          <div class="clone-actions">
+                            <button class="scm-primary" type="button" :disabled="sbBusy" @click="loadGitRepo()">
+                              拉取并打开
+                            </button>
+                          </div>
+                          <p class="clone-tip">
+                            支持公开与私有仓（私有仓将弹出访问令牌）。Vite Vue 3 / React / 静态页与 uni-app 简易 H5；子目录可写
+                            …/tree/main/web。
+                          </p>
+                          <div class="example-row">
+                            <button
+                              v-for="ex in GIT_EXAMPLES"
+                              :key="ex.url"
+                              class="ex-chip"
+                              type="button"
+                              :disabled="sbBusy"
+                              @click="useExample(ex.url)"
+                            >
+                              {{ ex.label }}
+                            </button>
+                          </div>
+                        </div>
+                      </template>
+
+                      <p v-if="sbStatus" class="scm-status" :class="{ bad: !!sbError }">{{ sbStatus }}</p>
+                      <p v-if="sbError" class="scm-err">{{ sbError }}</p>
+                    </div>
+
+                    <footer class="scm-foot">
+                      <span class="scm-foot-left">
+                        <span class="scm-dot" :class="{ on: scmEnabled }" />
+                        {{ scmFooterLeft }}
+                      </span>
+                      <span class="scm-foot-right">{{ scmFooterRight }}</span>
+                    </footer>
+                  </section>
+                </template>
+              </LocalRunPanel>
             </div>
           </div>
         </section>
@@ -1075,6 +1005,13 @@ function refreshScm() {
       multiple
       webkitdirectory
       @change="onLocalFilesChosen"
+    />
+
+    <FileSourceSheet
+      v-model:open="fileSourceOpen"
+      title="选择文件来源"
+      :hint="fileSourceHint"
+      @pick="onFileSourcePicked"
     />
 
     <AppDialog
@@ -1119,6 +1056,31 @@ function refreshScm() {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.workbench.immersive {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+  background: var(--paper);
+}
+
+.workbench.immersive .ide {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 0;
+  background: var(--paper);
+}
+
+.workbench.immersive .run-panel,
+.workbench.immersive .run-stage,
+.workbench.immersive .run-main {
+  padding: 0;
+  margin: 0;
+  background: var(--paper);
 }
 
 .ide {
@@ -1190,6 +1152,20 @@ function refreshScm() {
   background: var(--paper-2);
 }
 
+.scm-panel.embedded {
+  padding: 0;
+  background: var(--paper);
+  height: 100%;
+}
+
+.scm-panel.embedded .scm-head {
+  padding: 14px 12px 12px;
+}
+
+.scm-panel.embedded .scm-content {
+  padding: 0 12px 12px;
+}
+
 .scm-head {
   display: flex;
   align-items: center;
@@ -1229,7 +1205,7 @@ function refreshScm() {
 .scm-subs {
   display: flex;
   gap: 18px;
-  margin-top: 12px;
+  margin: 12px;
   border-bottom: 1px solid var(--line);
 }
 

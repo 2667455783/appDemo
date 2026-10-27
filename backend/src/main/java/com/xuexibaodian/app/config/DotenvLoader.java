@@ -5,23 +5,55 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
-/** 启动前把 backend/.env 写入系统属性（不覆盖已有环境变量） */
+/**
+ * 启动前按 Spring profile 加载 backend/.env.{profile}（缺省 dev），写入系统属性。
+ * 不覆盖已有环境变量 / 系统属性，便于线上用 SPRING_PROFILES_ACTIVE=prod + 服务器环境注入。
+ */
 public final class DotenvLoader {
 
   private DotenvLoader() {}
 
   public static void load() {
-    Path[] candidates = {
-      Path.of(".env"),
-      Path.of("backend", ".env"),
-    };
-    for (Path path : candidates) {
+    String profile = resolveProfile();
+    for (Path path : candidatePaths(profile)) {
       if (Files.isRegularFile(path)) {
         loadFile(path);
         return;
       }
     }
+  }
+
+  /** SPRING_PROFILES_ACTIVE → spring.profiles.active → 默认 dev；多 profile 取第一个非空。 */
+  static String resolveProfile() {
+    String raw = firstNonBlank(
+        System.getenv("SPRING_PROFILES_ACTIVE"),
+        System.getProperty("spring.profiles.active"),
+        System.getProperty("SPRING_PROFILES_ACTIVE"));
+    if (raw == null || raw.isBlank()) return "dev";
+    String first = raw.split(",")[0].trim();
+    return first.isEmpty() ? "dev" : first;
+  }
+
+  private static List<Path> candidatePaths(String profile) {
+    List<Path> paths = new ArrayList<>();
+    String named = ".env." + profile;
+    paths.add(Path.of(named));
+    paths.add(Path.of("backend", named));
+    // 兼容旧单文件 .env
+    paths.add(Path.of(".env"));
+    paths.add(Path.of("backend", ".env"));
+    return paths;
+  }
+
+  private static String firstNonBlank(String... values) {
+    if (values == null) return null;
+    for (String v : values) {
+      if (v != null && !v.isBlank()) return v.trim();
+    }
+    return null;
   }
 
   private static void loadFile(Path path) {

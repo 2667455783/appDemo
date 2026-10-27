@@ -10,6 +10,7 @@
 
 - `JAVA_HOME`：优先 `C:\Users\PC\.jdks\*`（如 `ms-17.0.19`）
 - `ANDROID_HOME`：项目内 `.android-sdk`（或 `android/local.properties` 的 `sdk.dir`）
+- `VITE_API_BASE`：默认取 `scripts/release.config.json` 的 `apiBase`（`http://134.175.54.151`），真机请求走线上后端；可用环境变量覆盖
 
 一般**不必**每次手动设环境变量。直接在项目根目录执行下方命令即可。
 
@@ -53,9 +54,10 @@ npm run release:apk -- --no-bump                      # 不升版本号
 - 清单：http://134.175.54.151/englishStudy/update.json
 - APK：http://134.175.54.151/englishStudy/app-{version}.apk
 - 备用：http://134.175.54.151/englishStudy/latest.apk
+- API：http://134.175.54.151/api/v1/health（nginx → 本机 Spring Boot）
 
 服务器目录：`/var/www/vue-admin/englishStudy`  
-配置文件：`scripts/release.config.json`
+配置文件：`scripts/release.config.json`（含 `apiBase`，发版时写入 `VITE_API_BASE`）
 
 ### App 内如何更新
 

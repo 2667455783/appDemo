@@ -17,12 +17,12 @@ export function buildStarterProject(id: StarterId): StarterProject {
   switch (id) {
     case 'vue':
       return {
-        title: 'Vue 3 Starter',
-        description: '学习宝典 · Vue 3 + Vite 练习项目',
+        title: 'Vue 3',
+        description: 'Vite + Vue 3 完整项目',
         files: {
           'package.json': JSON.stringify(
             {
-              name: 'vue-starter',
+              name: 'vue-app',
               private: true,
               version: '0.0.0',
               type: 'module',
@@ -54,7 +54,7 @@ export default defineConfig({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vue Starter</title>
+    <title>Vue 3</title>
   </head>
   <body>
     <div id="app"></div>
@@ -100,12 +100,12 @@ button {
       }
     case 'react':
       return {
-        title: 'React Starter',
-        description: '学习宝典 · React + Vite 练习项目',
+        title: 'React',
+        description: 'Vite + React 完整项目',
         files: {
           'package.json': JSON.stringify(
             {
-              name: 'react-starter',
+              name: 'react-app',
               private: true,
               version: '0.0.0',
               type: 'module',
@@ -138,7 +138,7 @@ export default defineConfig({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>React Starter</title>
+    <title>React</title>
   </head>
   <body>
     <div id="root"></div>
@@ -183,15 +183,15 @@ export default function App() {
     case 'html':
     default:
       return {
-        title: 'HTML Starter',
-        description: '学习宝典 · 静态页练习',
+        title: 'HTML',
+        description: '纯静态 HTML 项目',
         files: {
           'index.html': `<!DOCTYPE html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HTML Starter</title>
+    <title>HTML</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>

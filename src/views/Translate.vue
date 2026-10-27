@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import AppIcon from '@/components/AppIcon.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { detectLang, translateAuto, translateText, TRANSLATE_MAX_CHARS, type Lang } from '@/services/translate'
 import { canSpeak, speakText, stopSpeak } from '@/utils/audio'
@@ -336,10 +337,7 @@ onUnmounted(() => {
               :title="canSpeak() ? '朗读译文' : '当前环境不支持朗读'"
               @click="playOut"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                <path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-              </svg>
+              <AppIcon name="sound" :size="14" />
               {{ speakingOut ? '停止' : '播放' }}
             </button>
           </div>

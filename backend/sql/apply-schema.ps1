@@ -1,10 +1,13 @@
 # Apply schema.sql using backend/.env (requires MySQL 8 client)
 $ErrorActionPreference = 'Stop'
 $backendRoot = Split-Path $PSScriptRoot -Parent
-$envFile = Join-Path $backendRoot '.env'
+# Prefer .env.dev (local default profile), then legacy .env
+$envFile = Join-Path $backendRoot '.env.dev'
+if (-not (Test-Path $envFile)) { $envFile = Join-Path $backendRoot '.env' }
 if (-not (Test-Path $envFile)) {
-  throw "Missing .env at $envFile (copy .env.example first)"
+  throw "Missing .env.dev / .env under $backendRoot (copy .env.dev.example first)"
 }
+Write-Host "Using env file: $envFile"
 
 $vars = @{}
 Get-Content $envFile -Encoding UTF8 | ForEach-Object {

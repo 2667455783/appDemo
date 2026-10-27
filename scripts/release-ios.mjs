@@ -112,6 +112,15 @@ function resolveSshTools(env) {
 }
 
 const buildEnv = { ...process.env }
+const apiBase = String(process.env.VITE_API_BASE || cfg.apiBase || '')
+  .trim()
+  .replace(/\/$/, '')
+if (apiBase) {
+  buildEnv.VITE_API_BASE = apiBase
+  console.log(`发版将注入 VITE_API_BASE=${apiBase}`)
+} else {
+  console.warn('未配置 apiBase / VITE_API_BASE：真机将无法访问线上后端')
+}
 const { ssh: sshBin, scp: scpBin } = resolveSshTools(buildEnv)
 
 function run(cmd, cwd = root) {

@@ -25,7 +25,13 @@ export async function apiRequest<T>(
   init: RequestInit & { skipDeviceHeader?: boolean } = {},
 ): Promise<T> {
   const headers = new Headers(init.headers)
-  if (!headers.has('Content-Type') && init.body) {
+  // FormData / 二进制体不能强制成 JSON；FormData 还要让浏览器自带 boundary
+  const binaryBody =
+    init.body instanceof FormData ||
+    init.body instanceof Blob ||
+    init.body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(init.body)
+  if (!headers.has('Content-Type') && init.body && !binaryBody) {
     headers.set('Content-Type', 'application/json')
   }
   if (!init.skipDeviceHeader) {

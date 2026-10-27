@@ -8,7 +8,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 }
 
 /** 与 android/app/build.gradle versionCode 保持一致，发版时同步 +1 */
-const APP_VERSION_CODE = 30
+const APP_VERSION_CODE = 31
 
 /** 从 backend/.env 或进程环境读取（不进前端包，只给 Vite 代理用） */
 function loadEnvFile(path: string): Record<string, string> {

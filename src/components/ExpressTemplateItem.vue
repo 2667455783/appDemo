@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppIcon from '@/components/AppIcon.vue'
 import { contentFavIds, paragraphFavId, phraseFavId } from '@/data/templates'
 import { useTemplateFavStore } from '@/stores/templateFav'
 import type { ExpressTemplate } from '@/types'
@@ -54,15 +55,10 @@ function visibleParas() {
             :aria-pressed="fav.isFav(phraseFavId(item.id, p.no))"
             @click.stop="fav.toggle(phraseFavId(item.id, p.no))"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M12 3.6 14.7 9l6 .5-4.6 4.1 1.4 5.8L12 16.7 6.5 19.4l1.4-5.8L3.3 9.5l6-.5L12 3.6Z"
-                :fill="fav.isFav(phraseFavId(item.id, p.no)) ? 'currentColor' : 'none'"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linejoin="round"
-              />
-            </svg>
+            <AppIcon
+              :name="fav.isFav(phraseFavId(item.id, p.no)) ? 'star-filled' : 'star'"
+              :size="18"
+            />
           </button>
         </div>
       </template>
@@ -77,15 +73,10 @@ function visibleParas() {
             :aria-pressed="fav.isFav(paragraphFavId(item.id, row.index))"
             @click.stop="fav.toggle(paragraphFavId(item.id, row.index))"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M12 3.6 14.7 9l6 .5-4.6 4.1 1.4 5.8L12 16.7 6.5 19.4l1.4-5.8L3.3 9.5l6-.5L12 3.6Z"
-                :fill="fav.isFav(paragraphFavId(item.id, row.index)) ? 'currentColor' : 'none'"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linejoin="round"
-              />
-            </svg>
+            <AppIcon
+              :name="fav.isFav(paragraphFavId(item.id, row.index)) ? 'star-filled' : 'star'"
+              :size="18"
+            />
           </button>
         </div>
       </template>

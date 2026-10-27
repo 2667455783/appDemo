@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import AppIcon from '@/components/AppIcon.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { listEnabledDomains } from '@/domains/registry'
 import type { DomainId } from '@/domains/types'
@@ -56,29 +57,7 @@ function reset() {
 
     <div class="user-card">
       <div class="avatar" aria-hidden="true">
-        <svg viewBox="0 0 64 64" width="56" height="56">
-          <circle cx="32" cy="32" r="32" fill="var(--paper)" />
-          <path
-            d="M18 54c2-11 8-16 14-16s12 5 14 16"
-            fill="none"
-            stroke="var(--ink)"
-            stroke-width="1.6"
-            stroke-linecap="round"
-          />
-          <path
-            d="M22 28c1-9 6-14 10-14 5 0 10 5 11 14 0 6-4 11-10.5 11S22 34 22 28Z"
-            fill="none"
-            stroke="var(--ink)"
-            stroke-width="1.6"
-            stroke-linejoin="round"
-          />
-          <path d="M24 26c2 2 4 2 8 0" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linecap="round" />
-          <circle cx="27.5" cy="29.5" r="1.1" fill="var(--ink)" />
-          <circle cx="36.2" cy="29.5" r="1.1" fill="var(--ink)" />
-          <path d="M30.5 33.2c1.2 1.2 3.2 1.2 4.4 0" fill="none" stroke="var(--ink)" stroke-width="1.3" stroke-linecap="round" />
-          <path d="M24 46.5 32 42l8 4.5v8.5H24v-8.5Z" fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.5" stroke-linejoin="round" />
-          <path d="M32 42v9" fill="none" stroke="var(--ink)" stroke-width="1.3" />
-        </svg>
+        <AppIcon name="user" :size="36" />
       </div>
       <div class="user-meta">
         <p class="user-name">{{ user.name }}</p>
@@ -87,26 +66,10 @@ function reset() {
       </div>
       <div class="user-actions">
         <button class="icon-btn" type="button" aria-label="编辑资料" @click="router.push('/profile/edit')">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M4 20h4.2L19.4 8.8a1.6 1.6 0 0 0 0-2.3L16.5 3.6a1.6 1.6 0 0 0-2.3 0L3 14.8V20Z"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linejoin="round"
-            />
-            <path d="M13.2 5.8 17.2 9.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-          </svg>
+          <AppIcon name="edit" :size="20" />
         </button>
         <button class="icon-btn" type="button" aria-label="设置" @click="router.push('/profile/settings')">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7" />
-            <path
-              d="M19.4 13a7.8 7.8 0 0 0 .1-2l2-1.5-2-3.4-2.3.5a7.6 7.6 0 0 0-1.7-1L13 2h-2l-.5 2.6a7.6 7.6 0 0 0-1.7 1L6.5 6.1 4.5 9.5 6.5 11a7.8 7.8 0 0 0 0 2l-2 1.5 2 3.4 2.3-.5a7.6 7.6 0 0 0 1.7 1L11 22h2l.5-2.6a7.6 7.6 0 0 0 1.7-1l2.3.5 2-3.4-2-1.5Z"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <AppIcon name="setting" :size="20" />
           <span v-if="update.hasUpdate" class="sec-dot" aria-hidden="true" />
         </button>
       </div>
@@ -188,6 +151,10 @@ function reset() {
   border-radius: 50%;
   overflow: hidden;
   background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
 }
 .user-meta {
   flex: 1;

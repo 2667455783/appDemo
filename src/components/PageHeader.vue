@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Capacitor } from '@capacitor/core'
+import AppIcon from '@/components/AppIcon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -21,15 +22,7 @@ const showBack = computed(() => props.back && !Capacitor.isNativePlatform())
   <header class="head">
     <div class="title-row" :class="{ 'has-back': showBack }">
       <button v-if="showBack" class="back-btn" type="button" aria-label="返回" @click="emit('back')">
-        <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path
-            d="M15 6L9 12l6 6"
-            stroke="currentColor"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
+        <AppIcon class="chev" name="left" :size="16" />
         <span>返回</span>
       </button>
       <h1 v-if="title" class="page-title title" :title="title">{{ title }}</h1>

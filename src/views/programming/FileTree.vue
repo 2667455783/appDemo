@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, ref, watch, type PropType } from 'vue'
+import AppIcon from '@/components/AppIcon.vue'
+import { fileTreeIconFor } from '@/utils/fileTreeIcon'
 
 export type TreeNode = {
   name: string
@@ -107,18 +109,6 @@ function onPick(node: TreeNode) {
   emit('select', node.path)
 }
 
-function iconKind(node: TreeNode): string {
-  if (node.dir) return 'dir'
-  const n = node.name.toLowerCase()
-  if (n.endsWith('.vue')) return 'vue'
-  if (/\.(tsx|jsx|ts|js|mjs|cjs)$/.test(n)) return 'js'
-  if (n.endsWith('.json')) return 'json'
-  if (n.endsWith('.html') || n.endsWith('.htm')) return 'html'
-  if (/\.(css|scss|sass|less)$/.test(n)) return 'css'
-  if (n.endsWith('.md')) return 'md'
-  return 'file'
-}
-
 const Branch = defineComponent({
   name: 'FileTreeBranch',
   props: {
@@ -130,6 +120,7 @@ const Branch = defineComponent({
       nodes.map((node) => {
         const open = openDirs.value.has(node.path)
         const on = !node.dir && props.selected === node.path
+        const ico = fileTreeIconFor(node.name, node.dir, open)
         const row = h(
           'button',
           {
@@ -141,9 +132,22 @@ const Branch = defineComponent({
           },
           [
             node.dir
-              ? h('span', { class: ['ft-chev', { open }] }, '▸')
-              : h('span', { class: 'ft-chev spacer' }, '·'),
-            h('span', { class: ['ft-ico', iconKind(node)], 'aria-hidden': 'true' }),
+              ? h(
+                  AppIcon,
+                  {
+                    name: 'right',
+                    size: 10,
+                    class: ['ft-chev', { open }],
+                    color: 'var(--muted)',
+                  },
+                )
+              : h('span', { class: 'ft-chev spacer' }),
+            h(AppIcon, {
+              name: ico.name,
+              size: 14,
+              color: ico.color,
+              class: 'ft-ico',
+            }),
             h('span', { class: 'ft-name' }, node.name),
           ],
         )
@@ -157,13 +161,21 @@ const Branch = defineComponent({
     return () => renderNodes(branchProps.nodes, branchProps.depth)
   },
 })
+
+const rootIco = computed(() => fileTreeIconFor(props.rootLabel, true, openDirs.value.has('')))
 </script>
 
 <template>
   <div class="ft">
     <button type="button" class="ft-row root" @click="toggleDir('')">
-      <span class="ft-chev" :class="{ open: openDirs.has('') }">▸</span>
-      <span class="ft-ico dir" aria-hidden="true" />
+      <AppIcon
+        name="right"
+        :size="10"
+        class="ft-chev"
+        :class="{ open: openDirs.has('') }"
+        color="var(--muted)"
+      />
+      <AppIcon :name="rootIco.name" :size="14" :color="rootIco.color" class="ft-ico" />
       <span class="ft-name">{{ rootLabel }}</span>
       <span class="ft-count">{{ paths.length }}</span>
     </button>
@@ -219,9 +231,6 @@ const Branch = defineComponent({
 .ft-chev {
   width: 10px;
   flex-shrink: 0;
-  font-size: 10px;
-  line-height: 1;
-  color: var(--muted);
   transition: transform 0.12s ease;
 }
 
@@ -230,7 +239,13 @@ const Branch = defineComponent({
 }
 
 .ft-chev.spacer {
+  width: 10px;
+  flex-shrink: 0;
   visibility: hidden;
+}
+
+.ft-ico {
+  flex-shrink: 0;
 }
 
 .ft-name {
@@ -246,40 +261,6 @@ const Branch = defineComponent({
   font-size: 10px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
-}
-
-.ft-ico {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  border-radius: 3px;
-  background: #90a4ae;
-  opacity: 0.9;
-}
-
-.ft-ico.dir {
-  background: #e8c36a;
-  clip-path: polygon(0 20%, 40% 20%, 50% 0, 100% 0, 100% 100%, 0 100%);
-  border-radius: 0;
-}
-
-.ft-ico.vue {
-  background: #41b883;
-}
-.ft-ico.js {
-  background: #f0db4f;
-}
-.ft-ico.json {
-  background: #8bc34a;
-}
-.ft-ico.html {
-  background: #e44d26;
-}
-.ft-ico.css {
-  background: #264de4;
-}
-.ft-ico.md {
-  background: #42a5f5;
 }
 
 .ft-list {
@@ -322,8 +303,6 @@ const Branch = defineComponent({
 .ft :deep(.ft-chev) {
   width: 10px;
   flex-shrink: 0;
-  font-size: 10px;
-  color: var(--muted);
   transition: transform 0.12s ease;
 }
 
@@ -332,7 +311,13 @@ const Branch = defineComponent({
 }
 
 .ft :deep(.ft-chev.spacer) {
+  width: 10px;
+  flex-shrink: 0;
   visibility: hidden;
+}
+
+.ft :deep(.ft-ico) {
+  flex-shrink: 0;
 }
 
 .ft :deep(.ft-name) {
@@ -341,38 +326,5 @@ const Branch = defineComponent({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ft :deep(.ft-ico) {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  border-radius: 3px;
-  background: #90a4ae;
-  opacity: 0.9;
-}
-
-.ft :deep(.ft-ico.dir) {
-  background: #e8c36a;
-  clip-path: polygon(0 20%, 40% 20%, 50% 0, 100% 0, 100% 100%, 0 100%);
-  border-radius: 0;
-}
-.ft :deep(.ft-ico.vue) {
-  background: #41b883;
-}
-.ft :deep(.ft-ico.js) {
-  background: #f0db4f;
-}
-.ft :deep(.ft-ico.json) {
-  background: #8bc34a;
-}
-.ft :deep(.ft-ico.html) {
-  background: #e44d26;
-}
-.ft :deep(.ft-ico.css) {
-  background: #264de4;
-}
-.ft :deep(.ft-ico.md) {
-  background: #42a5f5;
 }
 </style>

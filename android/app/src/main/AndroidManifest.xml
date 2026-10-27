@@ -61,10 +61,19 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- Android 11+ 需声明才能发现系统 TTS 引擎 -->
+    <!-- Android 11+ 需声明才能发现系统 TTS / 微信选文件 -->
     <queries>
+        <package android:name="com.tencent.mm" />
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT" />
+            <data android:mimeType="*/*" />
         </intent>
     </queries>
 </manifest>

@@ -2,8 +2,18 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
+import AppIcon, { type AppIconName } from '@/components/AppIcon.vue'
 import { useAppUpdateStore } from '@/stores/appUpdate'
 import { useUserStore } from '@/stores/user'
+
+const tabIconMap: Record<string, AppIconName> = {
+  home: 'home',
+  vocab: 'book',
+  write: 'edit',
+  learn: 'safety',
+  practice: 'plus-square',
+  me: 'user',
+}
 
 const route = useRoute()
 const user = useUserStore()
@@ -28,29 +38,7 @@ function active(to: string) {
   <nav class="tabbar">
     <router-link v-for="t in tabs" :key="t.to" :to="t.to" :class="{ active: active(t.to) }">
       <span class="icon-wrap">
-        <svg v-if="t.icon === 'home'" width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" stroke="currentColor" stroke-width="1.7" />
-        </svg>
-        <svg v-else-if="t.icon === 'vocab'" width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M5 5h6a2 2 0 0 1 2 2v12l-3-1.5L7 19V7a2 2 0 0 0-2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-          <path d="M19 5h-6a2 2 0 0 0-2 2v12l3-1.5L17 19V7a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-        </svg>
-        <svg v-else-if="t.icon === 'write'" width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M5 19h4.2L18.5 9.7a1.6 1.6 0 0 0 0-2.3L15.8 4.7a1.6 1.6 0 0 0-2.3 0L4 14.2V19Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-          <path d="M12.8 6.2 16.5 10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-        </svg>
-        <svg v-else-if="t.icon === 'learn'" width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M4 6.5 12 3l8 3.5v8.2c0 3.2-3.4 5.8-8 7.3-4.6-1.5-8-4.1-8-7.3V6.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-          <path d="M12 11v6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-        </svg>
-        <svg v-else-if="t.icon === 'practice'" width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.7" />
-          <path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-        </svg>
-        <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="1.7" />
-          <path d="M5 19c1.4-3 4-4.5 7-4.5s5.6 1.5 7 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-        </svg>
+        <AppIcon :name="tabIconMap[t.icon] || 'user'" :size="20" />
         <span
           v-if="t.to === '/profile' && badgeVisible"
           class="tab-dot"

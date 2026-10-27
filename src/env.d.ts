@@ -27,6 +27,11 @@ declare module '*?url' {
   export default src
 }
 
+declare module '*?raw' {
+  const src: string
+  export default src
+}
+
 declare module '@babel/standalone' {
   const Babel: {
     transform: (
