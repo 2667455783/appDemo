@@ -712,8 +712,10 @@ function pickPersonalFolder() {
 async function ingestPersonalZip(file: File) {
   personalBusy.value = true
   personalError.value = ''
+  console.info('[upload-zip] start', { name: file.name, size: file.size, type: file.type })
   try {
     const detail = await uploadUserProjectZip(file)
+    console.info('[upload-zip] ok', { id: detail.id, title: detail.title, fileCount: detail.fileCount })
     await refreshPersonalProjects()
     emit('openSavedProject', {
       title: detail.title || file.name,
@@ -723,6 +725,7 @@ async function ingestPersonalZip(file: File) {
     filesAction.value = ''
     treeOpen.value = false
   } catch (err) {
+    console.error('[upload-zip] fail', err)
     personalError.value = err instanceof Error ? err.message : String(err)
   } finally {
     personalBusy.value = false
@@ -759,6 +762,7 @@ async function ingestPersonalFiles(list: File[]) {
 async function onFileSourcePicked(source: FilePickSource) {
   const kind = fileSourceKind.value
   personalError.value = ''
+  console.info('[upload] source picked', { source, kind, native: canUseNativeFilePick() })
   // 非 Android：来源面板仅作引导，随后仍走系统文件框（iOS「文件」里常有微信）
   if (!canUseNativeFilePick()) {
     if (kind === 'zip') personalZipInput.value?.click()
@@ -775,7 +779,10 @@ async function onFileSourcePicked(source: FilePickSource) {
         mimeType: source === 'wechat' ? '*/*' : 'application/zip',
       })
       const file = files[0]
-      if (!file) return
+      if (!file) {
+        console.warn('[upload-zip] no file returned from picker')
+        return
+      }
       if (!/\.zip$/i.test(file.name) && !/zip/i.test(file.type)) {
         personalError.value = '请选择 .zip 压缩包'
         return
@@ -2077,5 +2084,59 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
   background: var(--moss);
   color: var(--ink);
   font-size: 13px;
+}
+
+/* 横屏：压扁顶栏/底栏，把高度留给代码与预览 */
+@media (orientation: landscape) {
+  .lr-top {
+    height: 36px;
+    padding: 0 8px 0 2px;
+  }
+
+  .lr-menu,
+  .lr-run {
+    height: 32px;
+    width: auto;
+  }
+
+  .lr-menu {
+    width: 32px;
+  }
+
+  .lr-name {
+    font-size: 14px;
+  }
+
+  .lr-run {
+    font-size: 14px;
+  }
+
+  .lr-dock-bar {
+    height: 36px;
+  }
+
+  .lr-dock-btn {
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .lr-dock.open {
+    flex: 0 0 26%;
+    min-height: 96px;
+    max-height: 34%;
+  }
+
+  .lr-file-bar .lr-path-btn,
+  .lr-find {
+    height: 28px;
+  }
+
+  .lr-drawer {
+    width: min(56vw, 480px);
+  }
+
+  .lr-drawer.wide {
+    width: min(72vw, 640px);
+  }
 }
 </style>

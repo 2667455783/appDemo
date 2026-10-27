@@ -33,6 +33,7 @@ import {
   today,
   writeAllVersions,
 } from './lib/app-version.mjs'
+import { cosObjectUrl, uploadFileToCos } from './lib/cos-upload.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '..')
@@ -228,7 +229,22 @@ if (!noBump) {
 }
 
 const apkFileName = String(cfg.apkNamePattern || 'app-{version}.apk').replace('{version}', version)
-const apkUrl = `${cfg.publicBase.replace(/\/$/, '')}/${apkFileName}`
+const cosCfg = cfg.cos && typeof cfg.cos === 'object' ? cfg.cos : null
+const cosEnabled = !!(cosCfg && cosCfg.enabled)
+const cosPrefix = String(cosCfg?.prefix || 'englishStudy/').replace(/^\/+/, '').replace(/\/?$/, '/')
+const cosKeyApk = `${cosPrefix}${apkFileName}`
+const cosKeyLatest = `${cosPrefix}latest.apk`
+const apkUrl = cosEnabled
+  ? cosObjectUrl({
+      cdnBase: cosCfg.cdnBase,
+      bucket: cosCfg.bucket,
+      region: cosCfg.region,
+      key: cosKeyApk,
+    })
+  : `${cfg.publicBase.replace(/\/$/, '')}/${apkFileName}`
+if (cosEnabled) {
+  console.log(`APK 将走 COS/CDN：${apkUrl}`)
+}
 const publicUpdatePath = join(root, 'public/update.json')
 const prevManifest = readPrevManifest(publicUpdatePath)
 const manifest = {
@@ -321,45 +337,81 @@ const identity = cfg.identityFile
 const sshBase = `${sshBin} -p ${port} ${identity}`.replace(/\s+/g, ' ').trim()
 const scpBase = `${scpBin} -P ${port} ${identity}`.replace(/\s+/g, ' ').trim()
 
-console.log(`\n上传到 ${remote}:${remoteDir}`)
-console.log(`使用 ${sshBin} / ${scpBin}`)
 try {
+  if (cosEnabled) {
+    console.log(`\n上传 APK 到 COS（${cosCfg.bucket} / ${cosCfg.region}）…`)
+    let lastPct = -1
+    const report = ({ percent }) => {
+      const pct = Math.floor(percent * 100)
+      if (pct >= lastPct + 10 || pct >= 99) {
+        lastPct = pct
+        console.log(`  COS 进度 ${pct}%`)
+      }
+    }
+    await uploadFileToCos({
+      bucket: cosCfg.bucket,
+      region: cosCfg.region,
+      localPath: outApk,
+      key: cosKeyApk,
+      onProgress: report,
+    })
+    lastPct = -1
+    await uploadFileToCos({
+      bucket: cosCfg.bucket,
+      region: cosCfg.region,
+      localPath: join(releaseDir, 'latest.apk'),
+      key: cosKeyLatest,
+      onProgress: report,
+    })
+    console.log('COS APK 上传完成。')
+  }
+
+  console.log(`\n上传清单到 ${remote}:${remoteDir}`)
+  console.log(`使用 ${sshBin} / ${scpBin}`)
   execSync(`${sshBase} ${remote} "mkdir -p ${remoteDir}"`, {
     stdio: 'inherit',
     shell: true,
     env: buildEnv,
   })
-  execSync(`${scpBase} "${outApk}" "${remote}:${remoteDir}/${apkFileName}"`, {
-    stdio: 'inherit',
-    shell: true,
-    env: buildEnv,
-  })
-  execSync(`${scpBase} "${join(releaseDir, 'latest.apk')}" "${remote}:${remoteDir}/latest.apk"`, {
-    stdio: 'inherit',
-    shell: true,
-    env: buildEnv,
-  })
+  if (!cosEnabled) {
+    execSync(`${scpBase} "${outApk}" "${remote}:${remoteDir}/${apkFileName}"`, {
+      stdio: 'inherit',
+      shell: true,
+      env: buildEnv,
+    })
+    execSync(`${scpBase} "${join(releaseDir, 'latest.apk')}" "${remote}:${remoteDir}/latest.apk"`, {
+      stdio: 'inherit',
+      shell: true,
+      env: buildEnv,
+    })
+  }
   execSync(`${scpBase} "${outJson}" "${remote}:${remoteDir}/update.json"`, {
     stdio: 'inherit',
     shell: true,
     env: buildEnv,
   })
   // 远端同样只留当前 + 上一版 app-*.apk（保留 latest.apk / update.json）
-  const pruneRemote = `cd ${remoteDir} && ls -1 app-*.apk 2>/dev/null | sort -V | head -n -2 | xargs -r rm -f`
-  try {
-    execSync(`${sshBase} ${remote} "${pruneRemote}"`, { stdio: 'inherit', shell: true, env: buildEnv })
-  } catch {
-    console.warn('远端旧包清理跳过（不影响本次上传）')
+  if (!cosEnabled) {
+    const pruneRemote = `cd ${remoteDir} && ls -1 app-*.apk 2>/dev/null | sort -V | head -n -2 | xargs -r rm -f`
+    try {
+      execSync(`${sshBase} ${remote} "${pruneRemote}"`, { stdio: 'inherit', shell: true, env: buildEnv })
+    } catch {
+      console.warn('远端旧包清理跳过（不影响本次上传）')
+    }
   }
   console.log('\n上传成功。')
   console.log(`清单：${cfg.publicBase}/update.json`)
   console.log(`APK：  ${apkUrl}`)
   console.log('用户打开「我的 → 检查更新」即可下载安装。')
 } catch (e) {
-  console.error('\n上传失败。请确认：')
-  console.error(`  1. 能 SSH：${sshBase} ${remote}`)
-  console.error(`  2. 远端目录可写：${remoteDir}`)
-  console.error('  3. release.config.json 的 identityFile / remoteDir 是否正确')
-  console.error('也可：npm run release:apk -- --skip-upload 后手动上传 release/ 文件')
+  console.error('\n上传失败：', e instanceof Error ? e.message : e)
+  console.error('请确认：')
+  if (cosEnabled) {
+    console.error('  COS：bucket/region、COS_SECRET_ID/KEY 或 scripts/release.cos.json')
+    console.error('  说明见 docs/APK-COS-CDN发版.md')
+  }
+  console.error(`  SSH：${sshBase} ${remote}`)
+  console.error(`  远端目录：${remoteDir}`)
+  console.error('也可：npm run release:apk -- --skip-upload 后手动上传')
   process.exit(1)
 }

@@ -1097,6 +1097,12 @@ function refreshScm() {
   box-shadow: 0 8px 24px rgba(28, 25, 21, 0.06);
 }
 
+@media (orientation: landscape) {
+  .workbench.immersive .ide {
+    min-height: 0;
+  }
+}
+
 .ide-rail {
   display: flex;
   justify-content: space-around;

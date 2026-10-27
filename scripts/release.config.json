@@ -4,10 +4,17 @@
   "port": 22,
   "identityFile": "C:/Users/PC/.ssh/vue_admin_deploy",
   "remoteDir": "/var/www/vue-admin/englishStudy",
-  "publicBase": "http://134.175.54.151/englishStudy",
-  "apiBase": "http://134.175.54.151",
+  "publicBase": "https://tjb666.space/englishStudy",
+  "apiBase": "https://tjb666.space",
   "apkNamePattern": "学习宝典.apk",
   "ipaNamePattern": "app-{version}.ipa",
   "iosExportMethod": "development",
-  "iosTeamId": ""
+  "iosTeamId": "",
+  "cos": {
+    "enabled": false,
+    "bucket": "your-bucket-appid",
+    "region": "ap-guangzhou",
+    "prefix": "englishStudy/",
+    "cdnBase": "https://apk.tjb666.space"
+  }
 }

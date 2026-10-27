@@ -121,6 +121,26 @@ p {
   }
 }
 
+/* 横屏：取消「竖屏手机框」限宽，让代码区吃满整屏宽高 */
+@media (orientation: landscape) {
+  .stage {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+    background: var(--paper);
+    min-height: 100%;
+    height: 100%;
+  }
+  .phone {
+    max-width: none;
+    width: 100%;
+    height: 100svh;
+    height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
 .page {
   flex: 1;
   min-height: 0;

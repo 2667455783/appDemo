@@ -10,7 +10,7 @@
 
 - `JAVA_HOME`：优先 `C:\Users\PC\.jdks\*`（如 `ms-17.0.19`）
 - `ANDROID_HOME`：项目内 `.android-sdk`（或 `android/local.properties` 的 `sdk.dir`）
-- `VITE_API_BASE`：默认取 `scripts/release.config.json` 的 `apiBase`（`http://134.175.54.151`），真机请求走线上后端；可用环境变量覆盖
+- `VITE_API_BASE`：默认取 `scripts/release.config.json` 的 `apiBase`（`https://tjb666.space`），真机请求走线上后端；可用环境变量覆盖
 
 一般**不必**每次手动设环境变量。直接在项目根目录执行下方命令即可。
 
@@ -20,7 +20,9 @@ SSH 密钥：`C:\Users\PC\.ssh\vue_admin_deploy`（已写入 `scripts/release.co
 
 ## 方式一：一键发版（推荐）
 
-自动完成：版本号 +1 → `npm run build` → `cap sync` → 打 APK → 生成 `update.json` → SCP 上传服务器。
+自动完成：版本号 +1 → `npm run build` → `cap sync` → 打 APK → 生成 `update.json` → 上传（默认 SCP 到服务器；开启 COS 后 APK 走对象存储/CDN，清单仍 SCP）。
+
+> 下载慢（CVM 带宽不够）时，把 APK 改走 COS/CDN：见 [APK-COS-CDN发版.md](./APK-COS-CDN发版.md)。
 
 ```powershell
 # 打包并上传（更新版本号）
@@ -51,10 +53,11 @@ npm run release:apk -- --no-bump                      # 不升版本号
 
 ### 线上地址
 
-- 清单：http://134.175.54.151/englishStudy/update.json
-- APK：http://134.175.54.151/englishStudy/app-{version}.apk
-- 备用：http://134.175.54.151/englishStudy/latest.apk
-- API：http://134.175.54.151/api/v1/health（nginx → 本机 Spring Boot）
+- 清单：https://tjb666.space/englishStudy/update.json
+- APK：https://tjb666.space/englishStudy/学习宝典.apk
+- 备用：https://tjb666.space/englishStudy/latest.apk
+- API：https://tjb666.space/api/v1/health（nginx → 本机 Spring Boot）
+- 旧地址 `http://134.175.54.151/...` 仍保留 HTTP，便于旧包检查更新
 
 服务器目录：`/var/www/vue-admin/englishStudy`  
 配置文件：`scripts/release.config.json`（含 `apiBase`，发版时写入 `VITE_API_BASE`）

@@ -38,7 +38,17 @@ export async function apiRequest<T>(
     headers.set('X-Device-Id', getDeviceId())
   }
 
-  const res = await fetch(`${apiBase()}${path}`, { ...init, headers })
+  const url = `${apiBase()}${path}`
+  let res: Response
+  try {
+    res = await fetch(url, { ...init, headers })
+  } catch (err) {
+    const tip = err instanceof Error ? err.message : String(err)
+    throw new ApiError(
+      0,
+      `网络请求失败：${tip}（${url || path}）。若在 App 内，请确认已允许混合内容且可访问线上 API`,
+    )
+  }
   let body: ApiResult<T>
   try {
     body = (await res.json()) as ApiResult<T>

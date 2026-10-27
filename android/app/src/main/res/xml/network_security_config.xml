@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 允许访问更新服务器的明文 HTTP（仅限该 IP） -->
+<!-- 真机 WebView 需访问明文 HTTP API / 更新包 -->
 <network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">134.175.54.151</domain>
         <domain includeSubdomains="true">localhost</domain>

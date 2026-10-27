@@ -32,6 +32,7 @@ backend/.env
 backend/.env.dev
 backend/.env.prod
 backend/target/
+scripts/release.cos.json
 backend/sql/*.dump.sql
 backend/sql/_sync_*.sql
 

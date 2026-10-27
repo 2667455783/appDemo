@@ -1,6 +1,7 @@
 package com.englishdemo.app;
 
 import android.os.Bundle;
+import android.webkit.WebSettings;
 
 import com.englishdemo.app.file.PickDeviceFilePlugin;
 import com.englishdemo.app.reminder.StudyReminderPlugin;
@@ -18,5 +19,16 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(StudyReminderPlugin.class);
         registerPlugin(PickDeviceFilePlugin.class);
         super.onCreate(savedInstanceState);
+        // 兜底：https 壳访问 http API，避免 Failed to fetch
+        try {
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge()
+                    .getWebView()
+                    .getSettings()
+                    .setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            }
+        } catch (Exception ignored) {
+            /* bridge 未就绪时忽略，依赖 capacitor allowMixedContent */
+        }
     }
 }

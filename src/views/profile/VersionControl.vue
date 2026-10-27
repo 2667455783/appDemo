@@ -70,7 +70,7 @@ function onDownload() {
         <input v-model="manifestInput" type="url" placeholder="https://你的域名/update.json" />
         <button class="btn sm ghost" style="margin-top: 8px" type="button" @click="saveManifestUrl">保存地址</button>
         <p class="page-sub" style="margin-top: 8px">
-          默认清单：http://134.175.54.151/englishStudy/update.json
+          默认清单：https://tjb666.space/englishStudy/update.json
           发版：本机执行 npm run release:apk（自动升版本、打包、上传）。
         </p>
       </div>

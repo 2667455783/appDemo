@@ -8,7 +8,12 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     iosScheme: 'https',
+    // 允许 WebView 请求明文 HTTP（更新包 / 线上 API）
     cleartext: true,
+  },
+  android: {
+    // App 页面是 https://localhost，API 是 http://IP → 必须允许混合内容，否则 fetch 报 Failed to fetch
+    allowMixedContent: true,
   },
   plugins: {
     LocalNotifications: {

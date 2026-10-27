@@ -18,9 +18,16 @@ public class CorsConfig {
         List.of(
             "http://localhost:*",
             "http://127.0.0.1:*",
+            "https://localhost",
+            "https://localhost:*",
+            "https://tjb666.space",
+            "https://*.tjb666.space",
+            "http://tjb666.space",
+            "http://*.tjb666.space",
             "capacitor://*",
             "ionic://*",
-            "https://localhost"));
+            // Capacitor / 部分 WebView 可能带 null Origin
+            "null"));
     config.setAllowedHeaders(List.of("*"));
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
     config.setExposedHeaders(List.of("X-Device-Id"));

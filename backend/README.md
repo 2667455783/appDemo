@@ -16,7 +16,7 @@ mvn spring-boot:run
 
 # 线上服务器（已部署为 systemd：appdemo-backend）
 # 工作目录 /opt/appdemo-backend，profile=prod，仅监听 127.0.0.1:8080
-# 对外由 nginx 反代：http://134.175.54.151/api/...
+# 对外 HTTPS：https://tjb666.space/api/...（nginx 反代）
 # 更新 jar 后：
 #   scp target/appdemo-backend-0.1.0.jar root@HOST:/opt/appdemo-backend/appdemo-backend.jar
 #   systemctl restart appdemo-backend

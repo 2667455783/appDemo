@@ -1,10 +1,10 @@
 /**
- * 版本更新 —— 已对接你的服务器
- * 清单：http://134.175.54.151/englishStudy/update.json
- * APK：  http://134.175.54.151/englishStudy/学习宝典.apk
- * IPA：  http://134.175.54.151/englishStudy/app-{version}.ipa（需描述文件/TestFlight 等安装）
+ * 版本更新 —— 已对接你的服务器（HTTPS）
+ * 清单：https://tjb666.space/englishStudy/update.json
+ * APK：  https://tjb666.space/englishStudy/学习宝典.apk
+ * IPA：  https://tjb666.space/englishStudy/app-{version}.ipa（需描述文件/TestFlight 等安装）
  */
-export const UPDATE_PUBLIC_BASE = 'http://134.175.54.151/englishStudy'
+export const UPDATE_PUBLIC_BASE = 'https://tjb666.space/englishStudy'
 
 export const DEFAULT_UPDATE_MANIFEST_URL =
   (import.meta.env.VITE_UPDATE_MANIFEST_URL as string | undefined)?.trim() ||

@@ -9,6 +9,7 @@ import './style.css'
 import { syncOnLaunch } from '@/api/bootstrap'
 import { warmupWebVoices } from '@/utils/audio'
 import { initTracking } from '@/utils/tracking/tracking-init'
+import { installVConsoleGesture } from '@/utils/vconsoleGesture'
 
 initTracking()
 
@@ -18,6 +19,7 @@ app.use(pinia)
 app.use(router)
 app.mount('#app')
 
+installVConsoleGesture()
 warmupWebVoices()
 void syncOnLaunch()
 
