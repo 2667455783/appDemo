@@ -1,5 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import {
+  resolveInsert,
+  resolveCompletionInsert,
+  suggestCompletions,
+  wordPrefixAt,
+  type CompletionItem,
+} from '@/domains/programming/localrun/completions'
 import { findMatches, languageLabel, renderHighlighted, type SearchOpts } from '@/domains/programming/localrun/highlight'
 
 const props = defineProps<{
@@ -24,6 +31,38 @@ const caret = ref(0)
 const scrollTop = ref(0)
 const replacing = ref(false)
 
+const suggestItems = ref<CompletionItem[]>([])
+const suggestIndex = ref(0)
+const suggestPrefixStart = ref(0)
+const suggestOpen = computed(() => suggestItems.value.length > 0 && !searchOpen.value)
+
+type SymBtn =
+  | { id: string; label: string; kind: 'text'; text: string }
+  | { id: string; label: string; kind: 'pair'; left: string; right: string }
+  | { id: string; label: string; kind: 'snippet'; insert: string }
+  | { id: string; label: string; kind: 'tab' }
+  | { id: string; label: string; kind: 'move'; delta: number }
+
+const SYMBOL_BTNS: SymBtn[] = [
+  { id: 'tab', label: 'Tab', kind: 'tab' },
+  { id: 'paren', label: '()', kind: 'pair', left: '(', right: ')' },
+  { id: 'brace', label: '{}', kind: 'pair', left: '{', right: '}' },
+  { id: 'bracket', label: '[]', kind: 'pair', left: '[', right: ']' },
+  { id: 'eq', label: '=', kind: 'text', text: '=' },
+  { id: 'bang', label: '!', kind: 'text', text: '!' },
+  { id: 'and', label: '&&', kind: 'text', text: '&&' },
+  { id: 'or', label: '||', kind: 'text', text: '||' },
+  { id: 'colon', label: ':', kind: 'text', text: ':' },
+  { id: 'dot', label: '.', kind: 'text', text: '.' },
+  { id: 'dquote', label: '"', kind: 'pair', left: '"', right: '"' },
+  { id: 'squote', label: "'", kind: 'pair', left: "'", right: "'" },
+  { id: 'semi', label: ';', kind: 'text', text: ';' },
+  { id: 'arrow', label: '=>', kind: 'text', text: '=>' },
+  { id: 'if', label: 'if', kind: 'snippet', insert: 'if (|) {\n  \n}' },
+  { id: 'left', label: '←', kind: 'move', delta: -1 },
+  { id: 'right', label: '→', kind: 'move', delta: 1 },
+]
+
 const opts = computed<SearchOpts>(() => ({
   caseSensitive: caseSensitive.value,
   regex: useRegex.value,
@@ -47,6 +86,14 @@ const countLabel = computed(() => {
   return `${active.value + 1}/${matches.value.length}`
 })
 
+const suggestStyle = computed(() => {
+  const top = 8 + caretPos.value.line * LINE - scrollTop.value
+  return {
+    top: `${Math.max(8, top)}px`,
+    left: `calc(var(--gutter) + 8px)`,
+  }
+})
+
 watch(matches, (list) => {
   if (active.value >= list.length) active.value = Math.max(0, list.length - 1)
   if (searchOpen.value && list.length && !replacing.value) void reveal(active.value)
@@ -58,6 +105,7 @@ watch(
     caret.value = 0
     active.value = 0
     scrollTop.value = 0
+    closeSuggest()
   },
 )
 
@@ -70,14 +118,37 @@ function syncScroll() {
   scrollTop.value = ta.scrollTop
 }
 
+function closeSuggest() {
+  suggestItems.value = []
+  suggestIndex.value = 0
+}
+
+function refreshSuggest(text: string, pos: number) {
+  if (searchOpen.value || replacing.value) {
+    closeSuggest()
+    return
+  }
+  const { prefix, start } = wordPrefixAt(text, pos)
+  if (!prefix) {
+    closeSuggest()
+    return
+  }
+  const items = suggestCompletions(props.path || '', prefix)
+  suggestItems.value = items
+  suggestPrefixStart.value = start
+  suggestIndex.value = 0
+}
+
 function onInput(ev: Event) {
   const el = ev.target as HTMLTextAreaElement
   caret.value = el.selectionStart ?? 0
   emit('update:modelValue', el.value)
+  refreshSuggest(el.value, caret.value)
 }
 
 function rememberCaret() {
   caret.value = taRef.value?.selectionStart ?? caret.value
+  refreshSuggest(props.modelValue, caret.value)
 }
 
 function onScroll() {
@@ -125,10 +196,12 @@ function expandReplace(matched: string) {
 
 async function applyText(next: string, selectStart: number, selectEnd = selectStart) {
   replacing.value = true
+  closeSuggest()
   emit('update:modelValue', next)
   await nextTick()
   const ta = taRef.value
   if (ta) {
+    ta.focus()
     ta.setSelectionRange(selectStart, selectEnd)
     caret.value = selectStart
     syncScroll()
@@ -165,6 +238,7 @@ async function replaceAll() {
 
 async function openSearch(focusReplace = false, presetQuery?: string) {
   searchOpen.value = true
+  closeSuggest()
   if (typeof presetQuery === 'string') query.value = presetQuery
   await nextTick()
   if (focusReplace) {
@@ -206,6 +280,76 @@ function onReplaceKey(ev: KeyboardEvent) {
   }
 }
 
+async function insertAtCaret(raw: string, replaceFrom = caret.value, replaceTo = caret.value) {
+  const { text, cursorOffset } = resolveInsert(raw)
+  const next = `${props.modelValue.slice(0, replaceFrom)}${text}${props.modelValue.slice(replaceTo)}`
+  const pos = replaceFrom + cursorOffset
+  await applyText(next, pos)
+}
+
+async function acceptSuggest(index = suggestIndex.value) {
+  const item = suggestItems.value[index]
+  if (!item) return
+  const start = suggestPrefixStart.value
+  const end = caret.value
+  const insert = resolveCompletionInsert(item, props.modelValue, start, end)
+  await insertAtCaret(insert, start, end)
+}
+
+function insertTabSpaces() {
+  const ta = taRef.value
+  if (!ta) return
+  const start = ta.selectionStart ?? 0
+  const end = ta.selectionEnd ?? start
+  void insertAtCaret('  ', start, end)
+}
+
+function moveCaret(delta: number) {
+  const ta = taRef.value
+  if (!ta) return
+  ta.focus()
+  const next = Math.max(0, Math.min(props.modelValue.length, (ta.selectionStart ?? 0) + delta))
+  ta.setSelectionRange(next, next)
+  caret.value = next
+  refreshSuggest(props.modelValue, next)
+}
+
+function onSymPointerDown(ev: Event) {
+  // 防止按钮抢走焦点导致手机键盘收起
+  ev.preventDefault()
+}
+
+async function onSymbol(btn: SymBtn) {
+  const ta = taRef.value
+  ta?.focus()
+  if (btn.kind === 'tab') {
+    if (suggestOpen.value) {
+      await acceptSuggest()
+      return
+    }
+    insertTabSpaces()
+    return
+  }
+  if (btn.kind === 'move') {
+    moveCaret(btn.delta)
+    return
+  }
+  const start = ta?.selectionStart ?? caret.value
+  const end = ta?.selectionEnd ?? start
+  if (btn.kind === 'text') {
+    await insertAtCaret(btn.text, start, end)
+    return
+  }
+  if (btn.kind === 'pair') {
+    const selected = props.modelValue.slice(start, end)
+    await insertAtCaret(`${btn.left}${selected || '|'}${btn.right}`, start, end)
+    return
+  }
+  if (btn.kind === 'snippet') {
+    await insertAtCaret(btn.insert, start, end)
+  }
+}
+
 function onEditKey(ev: KeyboardEvent) {
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'f') {
     ev.preventDefault()
@@ -217,19 +361,45 @@ function onEditKey(ev: KeyboardEvent) {
     void openSearch(true)
     return
   }
+
+  if (suggestOpen.value) {
+    if (ev.key === 'ArrowDown') {
+      ev.preventDefault()
+      suggestIndex.value = (suggestIndex.value + 1) % suggestItems.value.length
+      return
+    }
+    if (ev.key === 'ArrowUp') {
+      ev.preventDefault()
+      suggestIndex.value = (suggestIndex.value - 1 + suggestItems.value.length) % suggestItems.value.length
+      return
+    }
+    if (ev.key === 'Enter' || ev.key === 'Tab') {
+      ev.preventDefault()
+      void acceptSuggest()
+      return
+    }
+    if (ev.key === 'Escape') {
+      ev.preventDefault()
+      closeSuggest()
+      return
+    }
+  }
+
   if (ev.key === 'Tab') {
     ev.preventDefault()
-    const ta = taRef.value
-    if (!ta) return
-    const start = ta.selectionStart ?? 0
-    const end = ta.selectionEnd ?? start
-    const next = `${props.modelValue.slice(0, start)}  ${props.modelValue.slice(end)}`
-    emit('update:modelValue', next)
-    void nextTick(() => {
-      ta.setSelectionRange(start + 2, start + 2)
-      caret.value = start + 2
-    })
+    insertTabSpaces()
+    return
   }
+
+  if (ev.key === ' ' || ev.key === '(' || ev.key === ')' || ev.key === '{' || ev.key === '}' || ev.key === ';' || ev.key === ',') {
+    closeSuggest()
+  }
+}
+
+function kindLabel(kind: CompletionItem['kind']) {
+  if (kind === 'snippet') return 'snippet'
+  if (kind === 'api') return 'api'
+  return 'keyword'
 }
 
 defineExpose({ openSearch })
@@ -317,6 +487,40 @@ defineExpose({ openSearch })
         @keyup="rememberCaret"
         @keydown="onEditKey"
       />
+      <ul
+        v-if="suggestOpen"
+        class="ce-suggest"
+        :style="suggestStyle"
+        role="listbox"
+        @mousedown.prevent
+      >
+        <li
+          v-for="(item, i) in suggestItems"
+          :key="`${item.kind}-${item.label}-${i}`"
+          class="ce-suggest-item"
+          :class="{ on: i === suggestIndex }"
+          role="option"
+          :aria-selected="i === suggestIndex"
+          @mousedown.prevent="acceptSuggest(i)"
+        >
+          <span class="ce-suggest-label">{{ item.label }}</span>
+          <span class="ce-suggest-kind">{{ item.detail || kindLabel(item.kind) }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="ce-syms" role="toolbar" aria-label="常用符号">
+      <button
+        v-for="btn in SYMBOL_BTNS"
+        :key="btn.id"
+        type="button"
+        class="ce-sym"
+        :title="btn.label"
+        @pointerdown="onSymPointerDown"
+        @click="onSymbol(btn)"
+      >
+        {{ btn.label }}
+      </button>
     </div>
 
     <footer class="ce-status">
@@ -514,6 +718,95 @@ defineExpose({ openSearch })
 .ce-input::selection {
   background: color-mix(in srgb, var(--forest) 32%, transparent);
   color: transparent;
+}
+
+.ce-suggest {
+  position: absolute;
+  z-index: 8;
+  min-width: 180px;
+  max-width: min(320px, calc(100% - 24px));
+  max-height: 180px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--paper) 92%, #0f172a);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+
+.ce-suggest-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.ce-suggest-item.on,
+.ce-suggest-item:hover {
+  background: var(--forest);
+  color: var(--on-primary);
+}
+
+.ce-suggest-item.on .ce-suggest-kind,
+.ce-suggest-item:hover .ce-suggest-kind {
+  color: color-mix(in srgb, var(--on-primary) 78%, transparent);
+}
+
+.ce-suggest-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.ce-suggest-kind {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.ce-syms {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+  scrollbar-width: thin;
+}
+
+.ce-sym {
+  flex: 0 0 auto;
+  height: 32px;
+  min-width: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+
+.ce-sym:active {
+  background: color-mix(in srgb, var(--forest) 18%, var(--paper-2));
+  border-color: color-mix(in srgb, var(--forest) 40%, var(--line));
 }
 
 .ce-pre :deep(.tok-keyword),

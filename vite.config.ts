@@ -8,7 +8,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 }
 
 /** 与 android/app/build.gradle versionCode 保持一致，发版时同步 +1 */
-const APP_VERSION_CODE = 35
+const APP_VERSION_CODE = 36
 
 /** 从 backend/.env 或进程环境读取（不进前端包，只给 Vite 代理用） */
 function loadEnvFile(path: string): Record<string, string> {
@@ -129,5 +129,8 @@ export default defineConfig({
     exclude: ['@xenova/transformers'],
     // 本地运行按需加载；预先打包，避免首次点击时 dev 整页重载
     include: ['vue/compiler-sfc'],
+  },
+  worker: {
+    format: 'es',
   },
 })

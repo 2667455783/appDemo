@@ -28,7 +28,7 @@ function choose(source: 'wechat' | 'local') {
     <div class="fss-panel" role="dialog" aria-modal="true" aria-labelledby="fss-title" @click.stop>
       <h2 id="fss-title" class="fss-title">{{ title || '选择文件来源' }}</h2>
       <p v-if="hint" class="fss-hint">{{ hint }}</p>
-      <button type="button" class="fss-btn primary" @click="choose('wechat')">微信文件</button>
+      <button type="button" class="fss-btn primary" @click="choose('wechat')">微信聊天文件</button>
       <button type="button" class="fss-btn" @click="choose('local')">手机本地文件</button>
       <button type="button" class="fss-btn ghost" @click="close">取消</button>
     </div>

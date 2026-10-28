@@ -18,6 +18,7 @@ import type { LocalRunProject } from '@/domains/programming/localrun/bundle'
 import { filesFromFileList } from '@/domains/programming/localrun/fromLocalFiles'
 import {
   canUseNativeFilePick,
+  cancelDeviceFilePick,
   pickDeviceFiles,
   shouldOfferFileSourceSheet,
   type FilePickSource,
@@ -74,7 +75,7 @@ const fileSourceKind = ref<'files' | 'folder'>('files')
 const fileSourceHint = computed(() =>
   fileSourceKind.value === 'folder'
     ? '手机端请多选文件夹内的文件（系统不一定支持直接选文件夹）'
-    : '可从微信聊天记录或手机存储中选择网页/代码文件',
+    : '选「微信聊天文件」会打开微信：在聊天里打开文件 →「用其他应用打开」→ 学习宝典',
 )
 const linkedRepo = ref<{ label: string; provider: string } | null>(null)
 const lastOpen = ref<OpenTarget | null>(null)
@@ -732,13 +733,22 @@ async function onFileSourcePicked(source: FilePickSource) {
     return
   }
   try {
+    if (source === 'wechat') {
+      sbStatus.value =
+        '已打开微信：请到聊天记录里打开文件 →「用其他应用打开」→ 学习宝典'
+    }
     const list = await pickDeviceFiles({
       source,
       multiple: true,
       mimeType: '*/*',
     })
+    if (!list.length) {
+      if (source === 'wechat') sbStatus.value = '未收到微信文件，可重试或改用「手机本地文件」'
+      return
+    }
     await ingestLocalFiles(list)
   } catch (err) {
+    if (source === 'wechat') void cancelDeviceFilePick()
     sbStatus.value = '本地上传失败'
     sbError.value = err instanceof Error ? err.message : String(err)
     runPanelRef.value?.openFilesAction('upload')

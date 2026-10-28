@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   deleteUserProject,
   getUserProject,
@@ -18,12 +18,30 @@ import AppIcon from '@/components/AppIcon.vue'
 import FileSourceSheet from '@/components/FileSourceSheet.vue'
 import {
   canUseNativeFilePick,
+  cancelDeviceFilePick,
+  onIncomingDeviceFiles,
   pickDeviceFiles,
   shouldOfferFileSourceSheet,
+  takeStashedIncomingFiles,
   type FilePickSource,
 } from '@/services/pickDeviceFile'
-import CodeEditor from '@/views/programming/CodeEditor.vue'
+import {
+  bindErudaPreviewIframe,
+  destroyErudaPanel,
+  erudaClearLogs,
+  erudaPushLog,
+  handleInspectPickFromPreview,
+  mountErudaPanel,
+  revealErudaPanel,
+  setErudaInspectingHandler,
+} from '@/utils/erudaPanel'
 import FileTree from '@/views/programming/FileTree.vue'
+
+/** Monaco + TS worker：仅进入编程编辑区时再下载，不进首屏 */
+const MonacoCodeEditor = defineAsyncComponent({
+  loader: () => import('@/views/programming/MonacoCodeEditor.vue'),
+  delay: 80,
+})
 
 type View = 'preview' | 'code' | 'console'
 type DrawerTab = 'files' | 'search' | 'git'
@@ -105,21 +123,247 @@ const personalFilesInput = ref<HTMLInputElement | null>(null)
 const personalFolderInput = ref<HTMLInputElement | null>(null)
 const fileSourceOpen = ref(false)
 const fileSourceKind = ref<'zip' | 'files' | 'folder'>('zip')
+const wechatPickWaiting = ref(false)
 const fileSourceHint = computed(() => {
-  if (fileSourceKind.value === 'zip') return '可从微信聊天记录或手机存储中选择 .zip 压缩包'
+  if (fileSourceKind.value === 'zip') {
+    return '选「微信聊天文件」会打开微信：在聊天里打开 .zip →「用其他应用打开」→ 学习宝典'
+  }
   if (fileSourceKind.value === 'folder') {
     return '手机端请多选文件夹内的文件（系统不一定支持直接选文件夹）'
   }
-  return '可从微信聊天记录或手机存储中选择网页/代码文件'
+  return '选「微信聊天文件」会打开微信：在聊天里打开文件 →「用其他应用打开」→ 学习宝典'
 })
 /** 底部运行结果是否展开（默认收起，用户点击才展开） */
 const consoleOpen = ref(false)
-const copyLabel = ref('复制')
+/** Elements 点选中：收起控制台区域，避免挡住预览页 */
+const erudaInspecting = ref(false)
 /** 最近一次编译出的完整 HTML */
 const lastHtml = ref('')
+/** 已运行过且不在代码页时才显示底部工具栏 */
+const dockVisible = computed(() => Boolean(lastHtml.value) && view.value !== 'code')
+/** eruda 内联挂载点（覆盖原「运行结果」文本区） */
+const consoleHost = ref<HTMLElement | null>(null)
+const rootEl = ref<HTMLElement | null>(null)
+let erudaReady = false
+
+/** 底部控制台高度（px），可拖动；记忆到 localStorage */
+const DOCK_H_KEY = 'lr-dock-console-h'
+/** 展开后松手时的最小高度（含 dock 工具栏） */
+const DOCK_MIN_H = 160
+/** 顶部菜单栏高度，拖高时必须留给它 */
+const DOCK_TOP_RESERVE = 48
+/** 中间预览/代码区至少留这么多，避免整页被控制台吃掉 */
+const DOCK_STAGE_MIN = 120
+const DOCK_DEFAULT_H = 280
+/** 收起态栏高度（约），上拉起点 */
+const DOCK_BAR_H = 40
+/** 下拉低于此高度松手则收起 */
+const DOCK_CLOSE_H = 96
+
+function readSavedDockH(): number {
+  try {
+    const n = Number(localStorage.getItem(DOCK_H_KEY) || '')
+    if (Number.isFinite(n) && n >= DOCK_MIN_H) return Math.round(n)
+  } catch {
+    /* ignore */
+  }
+  return DOCK_DEFAULT_H
+}
+
+const consoleHeightPx = ref(readSavedDockH())
+/** 拖动中：锁页面滚动、禁 iframe 抢触控 */
+const dockResizing = ref(false)
+const dockEl = ref<HTMLElement | null>(null)
+let dockPointerTracking = false
+let dockResizePointerId: number | null = null
+let dockResizeStartY = 0
+let dockResizeStartH = 0
+let dockCaptureEl: HTMLElement | null = null
+let dockResizeRaf = 0
+let dockResizePendingH = 0
+/** 本次拖动是否真的改变过高度（区分点按握把） */
+let dockDidResize = false
+
+function dockMaxH(): number {
+  const avail = rootEl.value?.clientHeight || window.innerHeight || 600
+  return Math.max(DOCK_MIN_H, avail - DOCK_TOP_RESERVE - DOCK_STAGE_MIN)
+}
+
+function clampDockH(h: number, minH = DOCK_MIN_H): number {
+  return Math.min(dockMaxH(), Math.max(minH, Math.round(h)))
+}
+
+function persistDockH() {
+  try {
+    localStorage.setItem(DOCK_H_KEY, String(consoleHeightPx.value))
+  } catch {
+    /* ignore */
+  }
+}
+
+const dockStyle = computed(() => {
+  if (!consoleOpen.value) return undefined
+  return {
+    height: `${consoleHeightPx.value}px`,
+    flex: '0 0 auto',
+    maxHeight: 'none',
+    minHeight: dockResizing.value ? `${DOCK_BAR_H}px` : `${DOCK_MIN_H}px`,
+  }
+})
+
+function applyDockHeight(h: number) {
+  dockResizePendingH = h
+  if (dockResizeRaf) return
+  dockResizeRaf = requestAnimationFrame(() => {
+    dockResizeRaf = 0
+    consoleHeightPx.value = dockResizePendingH
+  })
+}
+
+function clientYOf(e: PointerEvent | TouchEvent): number {
+  if ('clientY' in e && typeof (e as PointerEvent).clientY === 'number' && e.type.startsWith('pointer')) {
+    return (e as PointerEvent).clientY
+  }
+  const te = e as TouchEvent
+  const t = te.touches[0] || te.changedTouches[0]
+  return t?.clientY ?? dockResizeStartY
+}
+
+function onDockResizeMove(e: PointerEvent | TouchEvent) {
+  if (!dockPointerTracking) return
+  if ('pointerId' in e && dockResizePointerId != null && e.pointerId !== dockResizePointerId) return
+  // 专用握把上必须 preventDefault，否则 WebView 会 cancel 掉后续 move
+  if (e.cancelable) e.preventDefault()
+  const y = clientYOf(e)
+  const dy = dockResizeStartY - y
+  if (Math.abs(dy) > 2) dockDidResize = true
+  const next = dockResizeStartH + dy
+  applyDockHeight(clampDockH(next, DOCK_BAR_H))
+}
+
+function finishDockResize() {
+  if (!dockPointerTracking) return
+  dockPointerTracking = false
+  dockResizing.value = false
+  unbindDockResize()
+  if (dockResizeRaf) {
+    cancelAnimationFrame(dockResizeRaf)
+    dockResizeRaf = 0
+    consoleHeightPx.value = dockResizePendingH
+  }
+  dockResizePointerId = null
+  dockCaptureEl = null
+
+  const h = consoleHeightPx.value
+  if (!consoleOpen.value) return
+
+  // 握把轻点不负责展开/收起（仅箭头）；拖动中临时打开但几乎没拉动则收回
+  if (!dockDidResize) {
+    if (h <= DOCK_BAR_H + 8) consoleOpen.value = false
+    return
+  }
+
+  if (h < DOCK_CLOSE_H) {
+    consoleOpen.value = false
+    return
+  }
+  consoleHeightPx.value = clampDockH(Math.max(h, DOCK_MIN_H))
+  persistDockH()
+  void ensureErudaAfterOpen()
+}
+
+function onDockResizeEnd(e: PointerEvent | TouchEvent) {
+  if (!dockPointerTracking) return
+  if ('pointerId' in e && dockResizePointerId != null && e.pointerId !== dockResizePointerId) return
+  finishDockResize()
+}
+
+function unbindDockResize() {
+  window.removeEventListener('pointermove', onDockResizeMove as EventListener)
+  window.removeEventListener('pointerup', onDockResizeEnd as EventListener)
+  window.removeEventListener('pointercancel', onDockResizeEnd as EventListener)
+  window.removeEventListener('touchmove', onDockResizeMove as EventListener)
+  window.removeEventListener('touchend', onDockResizeEnd as EventListener)
+  window.removeEventListener('touchcancel', onDockResizeEnd as EventListener)
+}
+
+/**
+ * 直接拖工具栏调高；点在箭头按钮上不启动拖动，避免抢 click。
+ */
+function onDockResizeStart(e: PointerEvent) {
+  if (e.button !== undefined && e.button !== 0) return
+  if (dockPointerTracking) return
+  const t = e.target as HTMLElement | null
+  if (t?.closest('.lr-dock-chev, button')) return
+  e.preventDefault()
+  dockCaptureEl = e.currentTarget as HTMLElement
+  dockResizePointerId = e.pointerId
+  dockPointerTracking = true
+  dockDidResize = false
+  dockResizing.value = true
+  dockResizeStartY = e.clientY
+  const measured = dockEl.value?.getBoundingClientRect().height
+  if (!consoleOpen.value) {
+    // 收起态直接拉开壳子，高度从栏高开始跟手（松手再挂 eruda）
+    consoleOpen.value = true
+    dockResizeStartH = DOCK_BAR_H
+    consoleHeightPx.value = DOCK_BAR_H
+  } else {
+    dockResizeStartH =
+      measured && measured > 0 ? measured : consoleHeightPx.value
+  }
+  try {
+    dockCaptureEl.setPointerCapture(e.pointerId)
+  } catch {
+    /* ignore */
+  }
+  window.addEventListener('pointermove', onDockResizeMove as EventListener, { passive: false })
+  window.addEventListener('pointerup', onDockResizeEnd as EventListener)
+  window.addEventListener('pointercancel', onDockResizeEnd as EventListener)
+  window.addEventListener('touchmove', onDockResizeMove as EventListener, { passive: false })
+  window.addEventListener('touchend', onDockResizeEnd as EventListener)
+  window.addEventListener('touchcancel', onDockResizeEnd as EventListener)
+}
+
+/** 点击展开/收起 */
+function onDockToggleClick() {
+  consoleOpen.value = !consoleOpen.value
+}
+
+function ensureEruda() {
+  const host = consoleHost.value
+  if (!host) return
+  if (erudaReady) {
+    revealErudaPanel()
+    bindErudaPreviewIframe(frameEl.value)
+    return
+  }
+  mountErudaPanel(host)
+  erudaReady = true
+  bindErudaPreviewIframe(frameEl.value)
+  // 展开前已产生的日志回放到 eruda
+  for (const n of notes.value) erudaPushLog('info', n)
+  if (error.value && !logs.value.some((l) => l.text === error.value)) {
+    erudaPushLog('error', error.value)
+  }
+  for (const l of logs.value) erudaPushLog(l.level, l.text)
+}
+
+/** 等 dock 展开并完成 flex 布局后再挂 eruda，避免高度为 0 导致空白 */
+async function ensureErudaAfterOpen() {
+  await nextTick()
+  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+  ensureEruda()
+}
 
 function pushLog(level: string, text: string) {
   logs.value = [...logs.value, { level, text }].slice(-MAX_LOGS)
+  erudaPushLog(level, text)
+}
+
+function clearRunLogs() {
+  logs.value = []
+  erudaClearLogs()
 }
 
 function setView(next: View) {
@@ -132,6 +376,7 @@ function setView(next: View) {
 }
 
 function clearPreviewFrame() {
+  bindErudaPreviewIframe(null)
   frameEl.value = null
   const host = stageHost.value
   if (host) host.replaceChildren()
@@ -379,11 +624,9 @@ function openFileFinder() {
   openDrawer('files')
 }
 
-function toggleCode() {
-  if (view.value === 'code') {
-    view.value = 'preview'
-    return
-  }
+/** 预览页返回改代码（仅运行后顶栏展示） */
+function goToCode() {
+  consoleOpen.value = false
   view.value = 'code'
 }
 
@@ -436,34 +679,6 @@ function replaceContentAll() {
   schedulePersist()
 }
 
-async function copyOutput() {
-  const text =
-    view.value === 'code'
-      ? (files.value[current.value] ?? '')
-      : [...notes.value, ...logs.value.map((l) => l.text)].filter(Boolean).join('\n')
-  const value = text || (view.value === 'code' ? '' : '暂无运行结果')
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value)
-    } else {
-      const ta = document.createElement('textarea')
-      ta.value = value
-      ta.style.position = 'fixed'
-      ta.style.left = '-9999px'
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      ta.remove()
-    }
-    copyLabel.value = '已复制'
-  } catch {
-    copyLabel.value = '复制失败'
-  }
-  window.setTimeout(() => {
-    copyLabel.value = '复制'
-  }, 1200)
-}
-
 function closeTree() {
   treeOpen.value = false
 }
@@ -503,6 +718,7 @@ async function mountPreview(html: string) {
       doc.write(html)
       doc.close()
       pushLog('info', '[host] 预览已挂载 document.write')
+      bindErudaPreviewIframe(el)
       return
     }
   } catch {
@@ -512,6 +728,7 @@ async function mountPreview(html: string) {
   try {
     el.srcdoc = html
     pushLog('info', '[host] 预览已挂载 srcdoc')
+    el.addEventListener('load', () => bindErudaPreviewIframe(el), { once: true })
   } catch (err) {
     pushLog('error', `[host] 预览挂载失败：${err instanceof Error ? err.message : String(err)}`)
   }
@@ -525,7 +742,7 @@ async function run() {
   }
   building.value = true
   error.value = ''
-  logs.value = []
+  clearRunLogs()
   try {
     const res = await buildLocalBundle(
       {
@@ -537,6 +754,7 @@ async function run() {
       { vendorBase: vendorBase() },
     )
     notes.value = res.warnings
+    for (const n of res.warnings) erudaPushLog('info', n)
     await mountPreview(res.html)
     dirty.value = false
     emit('ran', true)
@@ -555,6 +773,10 @@ function onMessage(e: MessageEvent) {
   // 放宽来源校验：opaque iframe 下偶发 source 对不上导致控制台完全无日志
   const win = frameEl.value?.contentWindow
   if (win && e.source && e.source !== win) return
+  if (data.type === 'inspect-pick') {
+    handleInspectPickFromPreview()
+    return
+  }
   const level = data.type === 'error' ? 'error' : data.level || 'log'
   pushLog(level, data.text ?? '')
 }
@@ -573,7 +795,7 @@ function load(project: LocalRunProject | null) {
   contentExclude.value = ''
   filesAction.value = ''
   notes.value = []
-  logs.value = []
+  clearRunLogs()
   error.value = ''
   dirty.value = false
   lastHtml.value = ''
@@ -611,14 +833,57 @@ watch(
   },
 )
 
+async function handleIncomingShareFiles(list: File[]) {
+  if (!list.length || personalBusy.value) return
+  filesAction.value = 'projects'
+  openDrawer('files')
+  const zip = list.find((f) => /\.zip$/i.test(f.name) || /zip/i.test(f.type))
+  if (zip) {
+    await ingestPersonalZip(zip)
+    return
+  }
+  await ingestPersonalFiles(list)
+}
+
+let unbindIncoming: (() => void) | undefined
+
+watch(consoleOpen, (open) => {
+  if (!open) return
+  consoleHeightPx.value = clampDockH(consoleHeightPx.value, dockResizing.value ? DOCK_BAR_H : DOCK_MIN_H)
+  // 拖动过程中不挂 eruda，否则 WebView 会取消触控导致「拉一下就卡死」
+  if (dockResizing.value) return
+  void ensureErudaAfterOpen()
+})
+
 onMounted(() => {
   window.addEventListener('message', onMessage)
+  setErudaInspectingHandler((active) => {
+    erudaInspecting.value = active
+  })
   load(props.project)
+  unbindIncoming = onIncomingDeviceFiles((files) => {
+    void handleIncomingShareFiles(files)
+  })
+  const stashed = takeStashedIncomingFiles()
+  if (stashed?.length) void handleIncomingShareFiles(stashed)
+  if (consoleOpen.value) void ensureErudaAfterOpen()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('message', onMessage)
+  setErudaInspectingHandler(null)
+  erudaInspecting.value = false
+  unbindDockResize()
   clearPreviewFrame()
+  if (erudaReady) {
+    destroyErudaPanel()
+    erudaReady = false
+  }
+  unbindIncoming?.()
+  if (wechatPickWaiting.value) {
+    wechatPickWaiting.value = false
+    void cancelDeviceFilePick()
+  }
 })
 
 function openGit() {
@@ -771,6 +1036,11 @@ async function onFileSourcePicked(source: FilePickSource) {
     return
   }
   try {
+    if (source === 'wechat') {
+      wechatPickWaiting.value = true
+      personalError.value =
+        '已打开微信：请到聊天记录里打开文件 → 右上角「···」→「用其他应用打开」→ 学习宝典'
+    }
     if (kind === 'zip') {
       // 微信侧常不标 zip MIME，放宽后再校验扩展名
       const files = await pickDeviceFiles({
@@ -778,11 +1048,14 @@ async function onFileSourcePicked(source: FilePickSource) {
         multiple: false,
         mimeType: source === 'wechat' ? '*/*' : 'application/zip',
       })
+      wechatPickWaiting.value = false
       const file = files[0]
       if (!file) {
         console.warn('[upload-zip] no file returned from picker')
+        if (source === 'wechat') personalError.value = '未收到微信文件，可重试或改用「手机本地文件」'
         return
       }
+      personalError.value = ''
       if (!/\.zip$/i.test(file.name) && !/zip/i.test(file.type)) {
         personalError.value = '请选择 .zip 压缩包'
         return
@@ -795,10 +1068,20 @@ async function onFileSourcePicked(source: FilePickSource) {
       multiple: true,
       mimeType: '*/*',
     })
+    wechatPickWaiting.value = false
+    personalError.value = ''
     if (files.length) await ingestPersonalFiles(files)
+    else if (source === 'wechat') personalError.value = '未收到微信文件，可重试或改用「手机本地文件」'
   } catch (err) {
+    wechatPickWaiting.value = false
     personalError.value = err instanceof Error ? err.message : String(err)
   }
+}
+
+async function cancelWeChatPickWait() {
+  wechatPickWaiting.value = false
+  personalError.value = ''
+  await cancelDeviceFilePick()
 }
 
 async function onPersonalZipChosen(ev: Event) {
@@ -821,12 +1104,24 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
 </script>
 
 <template>
-  <div class="local-run">
+  <div
+    ref="rootEl"
+    class="local-run"
+    :class="{ 'dock-resizing': dockResizing, 'eruda-inspecting': erudaInspecting }"
+  >
     <header class="lr-top">
       <button type="button" class="lr-menu" aria-label="打开文件目录" @click="openTree">
         <AppIcon name="appstore" :size="22" />
       </button>
       <span class="lr-name">{{ shortTitle }}</span>
+      <button
+        v-if="lastHtml && view !== 'code'"
+        type="button"
+        class="lr-run"
+        @click="goToCode"
+      >
+        代码
+      </button>
       <button type="button" class="lr-run" :disabled="building" @click="run">
         {{ building ? '编译中…' : '运行' }}
       </button>
@@ -859,33 +1154,37 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
               <AppIcon name="search" :size="16" />
             </button>
           </div>
-          <CodeEditor ref="editorRef" v-model="code" :path="current" />
+          <MonacoCodeEditor ref="editorRef" v-model="code" :path="current" :files="files" />
         </template>
       </div>
     </div>
 
-    <footer class="lr-dock" :class="{ open: consoleOpen }">
-      <div class="lr-dock-bar">
-        <button
-          type="button"
-          class="lr-dock-btn"
-          :class="{ on: consoleOpen }"
-          @click="consoleOpen = !consoleOpen"
-        >
+    <footer
+      v-show="dockVisible"
+      ref="dockEl"
+      class="lr-dock"
+      :class="{ open: consoleOpen }"
+      :style="dockStyle"
+    >
+      <div
+        class="lr-dock-bar"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="拖动调整运行结果高度"
+        @pointerdown="onDockResizeStart"
+      >
+        <span class="lr-dock-grip" aria-hidden="true" />
+        <div class="lr-dock-label" :class="{ on: consoleOpen }">
           <span class="lr-prompt" aria-hidden="true">&gt;_</span>
           运行结果
           <span v-if="errorCount" class="lr-badge">{{ errorCount }}</span>
-        </button>
-        <button type="button" class="lr-dock-btn mid" :class="{ on: view === 'code' }" @click="toggleCode">
-          {{ view === 'code' ? '预览' : '代码' }}
-        </button>
+        </div>
         <div class="lr-dock-right">
-          <button type="button" class="lr-dock-btn" @click="copyOutput">{{ copyLabel }}</button>
           <button
             type="button"
             class="lr-dock-chev"
             :aria-label="consoleOpen ? '收起控制台' : '展开控制台'"
-            @click="consoleOpen = !consoleOpen"
+            @click="onDockToggleClick"
           >
             <AppIcon
               name="down"
@@ -896,10 +1195,7 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
         </div>
       </div>
       <div v-show="consoleOpen" class="lr-console">
-        <p v-if="!logs.length && !notes.length && !error" class="lr-console-empty">暂无输出</p>
-        <pre v-if="error && !logs.some((l) => l.text === error)" class="lr-line error">{{ error }}</pre>
-        <pre v-for="(n, i) in notes" :key="`n${i}`" class="lr-line note">{{ n }}</pre>
-        <pre v-for="(l, i) in logs" :key="i" class="lr-line" :class="l.level">{{ l.text }}</pre>
+        <div ref="consoleHost" class="lr-console-host" />
       </div>
     </footer>
 
@@ -973,7 +1269,7 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
                 选择文件夹
               </button>
               <p class="lr-empty-hint">
-                可单选 .html，或多选 html/css/js。手机上可从微信或本地存储选择。上传后点「运行」预览。
+                可单选 .html，或多选 html/css/js。手机上可从微信聊天或本地存储选择。上传后点「运行」预览。
               </p>
               <button type="button" class="lr-empty-btn" @click="filesAction = ''">返回</button>
             </div>
@@ -1008,10 +1304,18 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
                 </button>
               </div>
               <p class="lr-empty-hint">
-                上传后会保存到云端。手机上可从「微信文件」或「手机本地文件」选择。
+                上传后会保存到云端。手机上可从「微信聊天文件」或「手机本地文件」选择。
               </p>
               <p v-if="personalBusy" class="lr-personal-status">处理中…</p>
               <p v-if="personalError" class="lr-personal-err">{{ personalError }}</p>
+              <button
+                v-if="wechatPickWaiting"
+                type="button"
+                class="lr-empty-btn"
+                @click="cancelWeChatPickWait"
+              >
+                取消等待微信文件
+              </button>
               <ul v-if="personalList.length" class="lr-personal-list">
                 <li v-for="p in personalList" :key="p.id" class="lr-personal-item">
                   <button
@@ -1245,6 +1549,8 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
 
 .lr-top {
   flex-shrink: 0;
+  position: relative;
+  z-index: 4;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1399,21 +1705,57 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
 }
 
 .lr-dock.open {
-  flex: 0 0 32%;
-  min-height: 132px;
-  max-height: 42%;
+  /* 高度由 dockStyle（可拖动）控制 */
+  flex: 0 0 auto;
+}
+
+.local-run.dock-resizing {
+  cursor: ns-resize;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  overflow: hidden;
+}
+
+.local-run.dock-resizing .lr-stage,
+.local-run.dock-resizing .lr-console,
+.local-run.dock-resizing .lr-frame-host,
+.local-run.dock-resizing iframe {
+  pointer-events: none !important;
 }
 
 .lr-dock-bar {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  height: 44px;
+  height: 40px;
   padding: 0 6px 0 12px;
+  box-sizing: border-box;
   background: color-mix(in srgb, var(--stage) 72%, var(--forest));
+  position: relative;
+  z-index: 3;
+  cursor: ns-resize;
+  touch-action: none;
 }
 
+.lr-dock-grip {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--on-primary) 48%, transparent);
+  pointer-events: none;
+}
+
+.local-run.dock-resizing .lr-dock-grip {
+  background: color-mix(in srgb, var(--on-primary) 85%, transparent);
+}
+
+.lr-dock-label,
 .lr-dock-btn {
   border: 0;
   background: transparent;
@@ -1423,16 +1765,16 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 44px;
+  height: 100%;
   padding: 0;
 }
 
-.lr-dock-btn.on {
+.lr-dock-label.on {
   color: var(--on-primary);
 }
 
-.lr-dock-btn.mid {
-  justify-self: center;
+.lr-dock-btn {
+  color: var(--on-primary);
 }
 
 .lr-dock-right {
@@ -1461,7 +1803,7 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
 
 .lr-dock-chev {
   width: 32px;
-  height: 44px;
+  height: 100%;
   border: 0;
   background: transparent;
   color: var(--on-primary);
@@ -1473,35 +1815,59 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
 .lr-console {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 10px 14px 12px;
-  background: var(--stage);
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  background: #fff;
 }
 
-.lr-console-empty {
-  margin: 0;
-  color: color-mix(in srgb, var(--on-primary) 55%, transparent);
-  font-size: 13px;
+.lr-console-host {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.lr-line {
-  margin: 0 0 6px;
-  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: color-mix(in srgb, var(--on-primary) 92%, transparent);
-  white-space: pre-wrap;
-  word-break: break-word;
+/* eruda inline：铺满运行结果区 */
+.lr-console-host :deep(.eruda-entry-btn) {
+  display: none !important;
 }
 
-.lr-line.note {
-  color: color-mix(in srgb, var(--on-primary) 68%, transparent);
+.lr-console-host :deep(.eruda-container),
+.lr-console-host :deep(.eruda-dev-tools),
+.lr-console-host :deep(.eruda-dev-tools.show) {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 100% !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
+  z-index: 1 !important;
 }
 
-.lr-line.warn {
-  color: color-mix(in srgb, var(--gold) 80%, #fff);
+.lr-console-host :deep(.eruda-dev-tools .eruda-nav-bar-container),
+.lr-console-host :deep(.eruda-dev-tools .eruda-tool) {
+  visibility: visible !important;
 }
 
-.lr-line.error {
-  color: color-mix(in srgb, var(--coral) 70%, #fff);
+/* Elements 点选：收起控制台内容区，只留底栏，避免挡住预览 */
+.local-run.eruda-inspecting .lr-console {
+  flex: 0 0 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.local-run.eruda-inspecting .lr-dock.open {
+  height: auto !important;
+  min-height: 0 !important;
 }
 
 .lr-drawer-mask {
@@ -2116,14 +2482,7 @@ defineExpose({ selectFile, openTree, closeTree, openGit, openFilesAction, paths,
   }
 
   .lr-dock-btn {
-    height: 36px;
     font-size: 13px;
-  }
-
-  .lr-dock.open {
-    flex: 0 0 26%;
-    min-height: 96px;
-    max-height: 34%;
   }
 
   .lr-file-bar .lr-path-btn,

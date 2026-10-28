@@ -27,15 +27,31 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 原生选文件：支持「微信文件」与「手机本地文件」。
- * - wechat：优先拉起微信的 GET_CONTENT（聊天/收藏等文件）
- * - local：系统文档选择器（文件管理 / 下载 等）
+ * 原生选文件：
+ * - local：系统文档选择器
+ * - wechat：拉起微信，由用户在聊天记录里打开文件 →「用其他应用打开」→ 本应用
+ *   （第三方 App 无法调用小程序的 chooseMessageFile；这是拿聊天文件的可靠方式）
  */
 @CapacitorPlugin(name = "PickDeviceFile")
 public class PickDeviceFilePlugin extends Plugin {
 
   private static final String WECHAT_PKG = "com.tencent.mm";
   private static final long MAX_COPY_BYTES = 36L * 1024 * 1024;
+
+  private static PickDeviceFilePlugin instance;
+
+  private PluginCall pendingWeChatPick;
+  private boolean expectingWeChatFile;
+  private JSObject pendingIncomingFile;
+
+  @Override
+  public void load() {
+    instance = this;
+  }
+
+  public static PickDeviceFilePlugin getInstance() {
+    return instance;
+  }
 
   @PluginMethod
   public void pick(PluginCall call) {
@@ -44,26 +60,61 @@ public class PickDeviceFilePlugin extends Plugin {
     String mimeType = call.getString("mimeType", "*/*");
     if (mimeType == null || mimeType.isBlank()) mimeType = "*/*";
 
-    boolean wechat = "wechat".equalsIgnoreCase(source);
-    Intent intent = wechat ? buildWeChatIntent(mimeType, multiple) : buildLocalIntent(mimeType, multiple);
+    if ("wechat".equalsIgnoreCase(source)) {
+      startWeChatChatPick(call);
+      return;
+    }
 
+    Intent intent = buildLocalIntent(mimeType, multiple);
     try {
       startActivityForResult(call, intent, "onPickResult");
     } catch (ActivityNotFoundException e) {
-      if (wechat) {
-        // 微信未安装或不支持 GET_CONTENT：退回系统选择器（侧栏常含「微信」）
-        try {
-          Intent fallback = Intent.createChooser(buildLocalIntent(mimeType, multiple), "从微信或文件中选择");
-          startActivityForResult(call, fallback, "onPickResult");
-          return;
-        } catch (Exception ignored) {
-          call.reject("未安装微信，或无法打开文件选择。请改用「手机本地文件」，或先在微信里把文件「另存为」到手机后再选。");
-          return;
-        }
-      }
       call.reject("无法打开系统文件选择器");
     } catch (Exception e) {
       call.reject(e.getMessage() != null ? e.getMessage() : "打开文件选择器失败");
+    }
+  }
+
+  /** 取消正在等待的「微信聊天文件」选取 */
+  @PluginMethod
+  public void cancelPick(PluginCall call) {
+    finishWeChatPickCanceled();
+    call.resolve();
+  }
+
+  /** 冷启动时若已收到微信传来的文件，前端可取走 */
+  @PluginMethod
+  public void consumePendingIncoming(PluginCall call) {
+    JSObject ret = new JSObject();
+    if (pendingIncomingFile != null) {
+      ret.put("hasFile", true);
+      ret.put("file", pendingIncomingFile);
+      pendingIncomingFile = null;
+    } else {
+      ret.put("hasFile", false);
+    }
+    call.resolve(ret);
+  }
+
+  private void startWeChatChatPick(PluginCall call) {
+    Intent launch = getContext().getPackageManager().getLaunchIntentForPackage(WECHAT_PKG);
+    if (launch == null) {
+      call.reject("未安装微信。请安装微信后，在聊天记录中打开文件并选择「用其他应用打开」。");
+      return;
+    }
+    if (pendingWeChatPick != null) {
+      finishWeChatPickCanceled();
+    }
+    call.setKeepAlive(true);
+    pendingWeChatPick = call;
+    expectingWeChatFile = true;
+    try {
+      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      getContext().startActivity(launch);
+    } catch (Exception e) {
+      pendingWeChatPick = null;
+      expectingWeChatFile = false;
+      call.reject("无法打开微信：" + (e.getMessage() != null ? e.getMessage() : "未知错误"));
     }
   }
 
@@ -76,13 +127,67 @@ public class PickDeviceFilePlugin extends Plugin {
     return intent;
   }
 
-  private Intent buildWeChatIntent(String mimeType, boolean multiple) {
-    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-    intent.addCategory(Intent.CATEGORY_OPENABLE);
-    intent.setType(mimeType);
-    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multiple);
-    intent.setPackage(WECHAT_PKG);
-    return intent;
+  /**
+   * 由 MainActivity 在 ACTION_VIEW / ACTION_SEND 时调用：接收微信「用其他应用打开」传来的文件。
+   */
+  public void handleIncomingShareIntent(Intent intent) {
+    if (intent == null) return;
+    String action = intent.getAction();
+    if (action == null) return;
+    boolean view = Intent.ACTION_VIEW.equals(action);
+    boolean send = Intent.ACTION_SEND.equals(action);
+    if (!view && !send) return;
+
+    Uri uri = intent.getData();
+    if (uri == null && send) {
+      uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+    }
+    if (uri == null) return;
+
+    try {
+      JSObject file = copyUriToCache(uri);
+      deliverIncomingFile(file);
+    } catch (Exception e) {
+      PluginCall call = pendingWeChatPick;
+      if (call != null) {
+        pendingWeChatPick = null;
+        expectingWeChatFile = false;
+        call.reject(e.getMessage() != null ? e.getMessage() : "读取微信文件失败");
+      }
+    }
+  }
+
+  private void deliverIncomingFile(JSObject file) {
+    PluginCall call = pendingWeChatPick;
+    if (call != null) {
+      pendingWeChatPick = null;
+      expectingWeChatFile = false;
+      JSArray files = new JSArray();
+      files.put(file);
+      JSObject ret = new JSObject();
+      ret.put("canceled", false);
+      ret.put("files", files);
+      call.resolve(ret);
+      return;
+    }
+
+    // 非 pick 流程（例如直接从微信冷启动打开）：缓存并通知前端
+    pendingIncomingFile = file;
+    expectingWeChatFile = false;
+    JSObject event = new JSObject();
+    event.put("file", file);
+    notifyListeners("incomingFile", event);
+  }
+
+  private void finishWeChatPickCanceled() {
+    expectingWeChatFile = false;
+    PluginCall call = pendingWeChatPick;
+    pendingWeChatPick = null;
+    if (call == null) return;
+    JSObject ret = new JSObject();
+    ret.put("canceled", true);
+    ret.put("files", new JSArray());
+    call.resolve(ret);
   }
 
   @ActivityCallback
@@ -189,6 +294,11 @@ public class PickDeviceFilePlugin extends Plugin {
       /* fall through */
     } finally {
       if (c != null) c.close();
+    }
+    String path = uri.getPath();
+    if (path != null) {
+      int slash = path.lastIndexOf('/');
+      if (slash >= 0 && slash < path.length() - 1) return path.substring(slash + 1);
     }
     String last = uri.getLastPathSegment();
     return last != null ? last : null;

@@ -1,5 +1,6 @@
 package com.englishdemo.app;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.webkit.WebSettings;
 
@@ -30,5 +31,19 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {
             /* bridge 未就绪时忽略，依赖 capacitor allowMixedContent */
         }
+        handleIncomingShare(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingShare(intent);
+    }
+
+    private void handleIncomingShare(Intent intent) {
+        PickDeviceFilePlugin plugin = PickDeviceFilePlugin.getInstance();
+        if (plugin == null || intent == null) return;
+        plugin.handleIncomingShareIntent(intent);
     }
 }

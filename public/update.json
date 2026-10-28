@@ -1,8 +1,8 @@
 {
-  "version": "1.0.34",
-  "versionCode": 35,
+  "version": "1.0.35",
+  "versionCode": 36,
   "apkUrl": "https://tjb666.space/englishStudy/学习宝典.apk",
-  "notes": "支持横屏，扩大代码区",
-  "publishedAt": "2026-10-27",
+  "notes": "编程页：底部运行结果可拖动调高；运行后显示控制台/代码切换；eruda 控制台与 Elements 点选预览优化",
+  "publishedAt": "2026-10-28",
   "force": false
 }

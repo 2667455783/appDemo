@@ -1,6 +1,6 @@
 import VConsole from 'vconsole'
 
-const TAP_NEED = 5
+const TAP_NEED = 10
 /** 连点间隔窗口：超时则计数清零 */
 const TAP_WINDOW_MS = 2500
 
@@ -15,7 +15,20 @@ function openVConsole() {
     console.info('[vconsole] 已开启（连点页面 %s 次）', TAP_NEED)
   } else {
     instance.show()
+    instance.showSwitch()
   }
+}
+
+function closeVConsole() {
+  if (!instance) return
+  instance.destroy()
+  instance = null
+  console.info('[vconsole] 已关闭（连点页面 %s 次）', TAP_NEED)
+}
+
+function toggleVConsole() {
+  if (instance) closeVConsole()
+  else openVConsole()
 }
 
 function onTap() {
@@ -32,11 +45,11 @@ function onTap() {
       clearTimeout(resetTimer)
       resetTimer = null
     }
-    openVConsole()
+    toggleVConsole()
   }
 }
 
-/** 任意页面空白处连点 5 次打开 vConsole（便于真机看上传/接口日志） */
+/** 默认不显示；任意处连点 10 次打开/关闭 vConsole（便于真机看上传/接口日志） */
 export function installVConsoleGesture() {
   if (installed || typeof document === 'undefined') return
   installed = true

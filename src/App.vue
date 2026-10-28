@@ -9,6 +9,7 @@ import AppDialog from '@/components/AppDialog.vue'
 import TabBar from '@/components/TabBar.vue'
 import { bindReminderReceived, bindReminderTap } from '@/services/reminder'
 import { openApkDownload } from '@/services/appUpdate'
+import { subscribeIncomingDeviceFiles } from '@/services/pickDeviceFile'
 import { useAppUpdateStore } from '@/stores/appUpdate'
 import { useReminderStore } from '@/stores/reminder'
 import { useThemeStore } from '@/stores/theme'
@@ -33,6 +34,7 @@ const updatePromptMessage = computed(() => {
 
 let unbindReminderTap: (() => void) | undefined
 let unbindReminderReceived: (() => void) | undefined
+let unbindIncomingFiles: (() => void) | undefined
 let appStateSub: { remove: () => Promise<void> } | undefined
 let backButtonSub: { remove: () => Promise<void> } | undefined
 
@@ -101,12 +103,21 @@ onMounted(() => {
     }).then((h) => {
       backButtonSub = h
     })
+    // 从微信「用其他应用打开」冷启动/传入时，跳到编程工作台消费文件
+    void subscribeIncomingDeviceFiles(() => {
+      if (!route.path.startsWith('/d/programming/workbench')) {
+        void router.push('/d/programming/workbench')
+      }
+    }).then((off) => {
+      unbindIncomingFiles = off
+    })
   }
 })
 
 onUnmounted(() => {
   unbindReminderTap?.()
   unbindReminderReceived?.()
+  unbindIncomingFiles?.()
   void appStateSub?.remove()
   void backButtonSub?.remove()
 })
