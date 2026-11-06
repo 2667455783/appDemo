@@ -1,7 +1,5 @@
 # Deploy explore-chat backend to tjb666.space using the same SSH key as APK release.
-# From repo root:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-explore-backend.ps1
-# From backend folder the wrapper at backend\scripts\deploy-explore-backend.ps1 calls this file.
+# From repo root OR backend folder (wrapper).
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $root = Split-Path -Parent $here
@@ -18,41 +16,42 @@ if (-not (Test-Path -LiteralPath $cfgPath)) {
   Write-Error 'missing scripts/release.config.json'
 }
 $cfg = Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json
-$hostName = $cfg.host
-$user = $cfg.user
+$hostName = [string]$cfg.host
+$user = [string]$cfg.user
 $port = 22
 if ($cfg.port) { $port = [int]$cfg.port }
-$key = $cfg.identityFile
+$key = [string]$cfg.identityFile
 if (-not (Test-Path -LiteralPath $key)) {
   Write-Error ("SSH key not found: " + $key)
 }
 
-$ssh = Join-Path $env:WINDIR 'System32\OpenSSH\ssh.exe'
-if (-not (Test-Path -LiteralPath $ssh)) { $ssh = 'ssh' }
+function Find-SshTool([string]$name) {
+  $p1 = Join-Path $env:WINDIR ('System32\OpenSSH\' + $name + '.exe')
+  if (Test-Path -LiteralPath $p1) { return $p1 }
+  $cmd = Get-Command $name -ErrorAction SilentlyContinue
+  if ($cmd) { return $cmd.Source }
+  Write-Error ($name + ' not found. Install OpenSSH Client.')
+}
 
+$ssh = Find-SshTool 'ssh'
+$scp = Find-SshTool 'scp'
 $remote = Join-Path $root 'scripts\deploy-explore-backend-remote.sh'
 if (-not (Test-Path -LiteralPath $remote)) {
   Write-Error 'missing scripts/deploy-explore-backend-remote.sh'
 }
 
+$dest = ($user + '@' + $hostName + ':/tmp/deploy-explore-backend.sh')
+$common = @('-i', $key, '-o', 'IdentitiesOnly=yes', '-o', 'StrictHostKeyChecking=accept-new')
+
 Write-Host ('Deploying to ' + $user + '@' + $hostName + ' (no local JDK needed)')
-$psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName = $ssh
-$psi.Arguments = "-i `"$key`" -p $port -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new ${user}@${hostName} bash -s"
-$psi.RedirectStandardInput = $true
-$psi.RedirectStandardOutput = $true
-$psi.RedirectStandardError = $true
-$psi.UseShellExecute = $false
-$p = New-Object System.Diagnostics.Process
-$p.StartInfo = $psi
-$null = $p.Start()
-$in = Get-Content -LiteralPath $remote -Raw
-$p.StandardInput.Write($in)
-$p.StandardInput.Close()
-$out = $p.StandardOutput.ReadToEnd()
-$err = $p.StandardError.ReadToEnd()
-$p.WaitForExit()
-if ($out) { Write-Host $out }
-if ($err) { Write-Host $err }
-if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+Write-Host 'Uploading remote script...'
+$scpArgs = @('-P', [string]$port) + $common + @($remote, $dest)
+& $scp @scpArgs
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host 'Running on server...'
+$remoteCmd = 'sed -i "s/\r$//" /tmp/deploy-explore-backend.sh && bash /tmp/deploy-explore-backend.sh'
+$sshArgs = @('-p', [string]$port) + $common + @(($user + '@' + $hostName), $remoteCmd)
+& $ssh @sshArgs
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host 'Deploy finished. Then run: npm run dev:prod-api'

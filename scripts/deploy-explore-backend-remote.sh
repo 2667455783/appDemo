@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run on the production host. Builds this branch and restarts appdemo-backend.
-set -euo pipefail
+set -eu
 export DEBIAN_FRONTEND=noninteractive
 BRANCH="${DEPLOY_BRANCH:-cursor/explore-chat-tab-4cb6}"
 REPO_URL="${DEPLOY_REPO:-https://github.com/2667455783/appDemo.git}"
