@@ -1,141 +1,152 @@
-# 本机开发启动：不依赖全局 mvn / JAVA_HOME。
-# 用法（在 backend 目录）：
+# Requires Windows PowerShell 5.1+. Do not use a here-string in this file.
+# Usage from backend folder:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\start-dev.ps1
-# 默认 profile=dev，读取 .env.dev。不要加 profiles=local。
 
 $ErrorActionPreference = 'Stop'
-Set-Location $PSScriptRoot
+Set-Location -LiteralPath $PSScriptRoot
 
-function Normalize-JavaHome([string]$home) {
-  if (-not $home) { return $null }
-  $home = $home.Trim().Trim('"').TrimEnd('\', '/')
-  if (Test-Path -LiteralPath (Join-Path $home 'bin\java.exe')) { return $home }
-  # 有人把 JAVA_HOME 设成 ...\bin
-  if (Test-Path -LiteralPath (Join-Path $home 'java.exe')) {
-    return (Split-Path -Parent $home)
+function Normalize-JavaHome {
+  param([string]$HomeDir)
+  if ([string]::IsNullOrWhiteSpace($HomeDir)) { return $null }
+  $HomeDir = $HomeDir.Trim().Trim('"')
+  while ($HomeDir.EndsWith('\') -or $HomeDir.EndsWith('/')) {
+    $HomeDir = $HomeDir.Substring(0, $HomeDir.Length - 1)
   }
+  $exeInBin = Join-Path $HomeDir 'bin\java.exe'
+  if (Test-Path -LiteralPath $exeInBin) { return $HomeDir }
+  $exeHere = Join-Path $HomeDir 'java.exe'
+  if (Test-Path -LiteralPath $exeHere) { return (Split-Path -Parent $HomeDir) }
   return $null
 }
 
-function Test-JavaHome([string]$home) {
-  return [bool](Normalize-JavaHome $home)
+function Add-Home {
+  param($List, [string]$Candidate)
+  $n = Normalize-JavaHome $Candidate
+  if ($n) { [void]$List.Add($n) }
 }
 
-function Get-JavaVersion([string]$javaExe) {
+function Get-JavaVersion {
+  param([string]$JavaExe)
   try {
-    $out = & $javaExe -version 2>&1 | Out-String
+    $out = & $JavaExe -version 2>&1 | Out-String
     if ($out -match 'version "(\d+)') { return [int]$Matches[1] }
     if ($out -match 'version "1\.(\d+)') { return [int]$Matches[1] }
-  } catch { }
+  } catch {
+    return 0
+  }
   return 0
+}
+
+function Get-RegistryJavaHomes {
+  $found = New-Object System.Collections.Generic.List[string]
+  $roots = @(
+    'HKLM:\SOFTWARE\JavaSoft\JDK',
+    'HKLM:\SOFTWARE\JavaSoft\Java Development Kit',
+    'HKLM:\SOFTWARE\WOW6432Node\JavaSoft\JDK',
+    'HKLM:\SOFTWARE\Eclipse Adoptium',
+    'HKLM:\SOFTWARE\Microsoft\JDK'
+  )
+  foreach ($root in $roots) {
+    if (-not (Test-Path -LiteralPath $root)) { continue }
+    Get-ChildItem -LiteralPath $root -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+      foreach ($name in @('JavaHome', 'Path', 'InstallationPath')) {
+        try {
+          $val = (Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue).$name
+          if ($val) { [void]$found.Add([string]$val) }
+        } catch { }
+      }
+    }
+  }
+  return $found
 }
 
 function Resolve-JavaHome {
   $homes = New-Object System.Collections.Generic.List[string]
+  Add-Home $homes $env:JAVA_HOME
 
-  $fromEnv = Normalize-JavaHome $env:JAVA_HOME
-  if ($fromEnv) { $homes.Add($fromEnv) }
-
-  $javaCmd = Get-Command java -ErrorAction SilentlyContinue
+  $javaCmd = Get-Command java.exe -ErrorAction SilentlyContinue
+  if (-not $javaCmd) { $javaCmd = Get-Command java -ErrorAction SilentlyContinue }
   if ($javaCmd -and $javaCmd.Source) {
-    $bin = Split-Path -Parent $javaCmd.Source
-    $home = Split-Path -Parent $bin
-    $home = Normalize-JavaHome $home
-    if ($home) { $homes.Add($home) }
+    Add-Home $homes (Split-Path -Parent (Split-Path -Parent $javaCmd.Source))
   }
 
-  $whereJava = & cmd.exe /c "where java 2>nul"
-  foreach ($line in @($whereJava)) {
-    if ($line -and (Test-Path -LiteralPath $line)) {
-      $home = Normalize-JavaHome (Split-Path -Parent (Split-Path -Parent $line))
-      if ($home) { $homes.Add($home) }
+  try {
+    $whereOut = cmd.exe /c 'where java 2>nul'
+    foreach ($line in @($whereOut)) {
+      if ($line -and (Test-Path -LiteralPath $line)) {
+        Add-Home $homes (Split-Path -Parent (Split-Path -Parent $line))
+      }
     }
-  }
+  } catch { }
+
+  foreach ($reg in (Get-RegistryJavaHomes)) { Add-Home $homes $reg }
 
   $roots = @(
-    $env:JAVA_HOME,
-    "$env:ProgramFiles\Java",
-    "$env:ProgramFiles\Eclipse Adoptium",
-    "$env:ProgramFiles\Microsoft",
-    "$env:ProgramFiles\Amazon Corretto",
-    "$env:ProgramFiles\Zulu",
-    "$env:ProgramFiles\BellSoft",
-    "$env:ProgramFiles\OpenJDK",
-    "$env:ProgramFiles\Android\Android Studio\jbr",
-    "$env:ProgramFiles\Android\Android Studio\jre",
-    "${env:ProgramFiles(x86)}\Java",
-    "$env:LOCALAPPDATA\Programs\Eclipse Adoptium",
-    "$env:LOCALAPPDATA\Programs\Microsoft",
-    "$env:USERPROFILE\.jdks",
-    "$env:USERPROFILE\scoop\apps\temurin17\current",
-    "$env:USERPROFILE\scoop\apps\openjdk17\current",
-    "$env:USERPROFILE\scoop\apps\temurin21\current"
-  ) | Where-Object { $_ }
+    (Join-Path $env:ProgramFiles 'Java'),
+    (Join-Path $env:ProgramFiles 'Eclipse Adoptium'),
+    (Join-Path $env:ProgramFiles 'Microsoft'),
+    (Join-Path $env:ProgramFiles 'Amazon Corretto'),
+    (Join-Path $env:ProgramFiles 'Zulu'),
+    (Join-Path $env:ProgramFiles 'BellSoft'),
+    (Join-Path $env:ProgramFiles 'OpenJDK'),
+    (Join-Path $env:ProgramFiles 'Android\Android Studio\jbr'),
+    (Join-Path $env:ProgramFiles 'Android\Android Studio\jre'),
+    (Join-Path $env:ProgramFiles 'Cursor\jbr'),
+    (Join-Path $env:LOCALAPPDATA 'Programs\Eclipse Adoptium'),
+    (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft'),
+    (Join-Path $env:USERPROFILE '.jdks'),
+    (Join-Path $env:USERPROFILE 'scoop\apps\temurin17\current'),
+    (Join-Path $env:USERPROFILE 'scoop\apps\temurin21\current')
+  )
+  $x86 = ${env:ProgramFiles(x86)}
+  if ($x86) { $roots += (Join-Path $x86 'Java') }
 
   foreach ($root in $roots) {
-    $n = Normalize-JavaHome $root
-    if ($n) { $homes.Add($n) }
+    Add-Home $homes $root
     if (-not (Test-Path -LiteralPath $root)) { continue }
     Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-      $n = Normalize-JavaHome $_.FullName
-      if ($n) { $homes.Add($n) }
-      $n = Normalize-JavaHome (Join-Path $_.FullName 'jbr')
-      if ($n) { $homes.Add($n) }
+      Add-Home $homes $_.FullName
+      Add-Home $homes (Join-Path $_.FullName 'jbr')
     }
   }
 
-  Get-ChildItem "$env:LOCALAPPDATA\JetBrains\Toolbox\apps" -Directory -ErrorAction SilentlyContinue |
-    ForEach-Object {
-      Get-ChildItem $_.FullName -Recurse -Directory -Filter 'jbr' -ErrorAction SilentlyContinue |
-        Select-Object -First 3 |
-        ForEach-Object {
-          $n = Normalize-JavaHome $_.FullName
-          if ($n) { $homes.Add($n) }
-        }
-    }
-
-  $unique = $homes | Select-Object -Unique
+  $unique = @($homes | Select-Object -Unique)
   $ranked = foreach ($h in $unique) {
     $java = Join-Path $h 'bin\java.exe'
-    $ver = Get-JavaVersion $java
-    $hasJavac = Test-Path (Join-Path $h 'bin\javac.exe')
-    [pscustomobject]@{ Home = $h; Ver = $ver; Jdk = $hasJavac }
+    [pscustomobject]@{
+      Home = $h
+      Ver  = Get-JavaVersion $java
+      Jdk  = [bool](Test-Path -LiteralPath (Join-Path $h 'bin\javac.exe'))
+    }
   }
-  $ok = @($ranked | Where-Object { $_.Ver -ge 17 } | Sort-Object @{ Expression = 'Jdk'; Descending = $true }, @{ Expression = 'Ver'; Descending = $true })
+  $ok = @($ranked | Where-Object { $_.Ver -ge 17 } | Sort-Object -Property @{ Expression = 'Jdk'; Descending = $true }, @{ Expression = 'Ver'; Descending = $true })
   if ($ok.Count -gt 0) { return $ok[0].Home }
-  $any = @($ranked | Sort-Object @{ Expression = 'Ver'; Descending = $true })
-  if ($any.Count -gt 0) { return $any[0].Home }
+  $any = @($ranked | Sort-Object -Property Ver -Descending)
+  if ($any.Count -gt 0 -and $any[0].Ver -gt 0) { return $any[0].Home }
   return $null
 }
 
 $javaHome = Resolve-JavaHome
 if (-not $javaHome) {
-  Write-Host @"
-找不到 JDK。Maven Wrapper 需要 JAVA_HOME。
-
-请先装 Eclipse Temurin 17（免费），或把已有 JDK 的路径设进当前窗口：
-
-  `$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-17.x.x-hotspot'
-  `$env:Path = "`$env:JAVA_HOME\bin;" + `$env:Path
-  .\mvnw.cmd spring-boot:run
-
-Android Studio 自带的 JBR 也可以：
-  `$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-"@
+  Write-Host 'No JDK found. JAVA_HOME is required.'
+  Write-Host 'Install Temurin 17 (free) then re-run this script:'
+  Write-Host '  winget install --id EclipseAdoptium.Temurin.17.JDK -e --accept-package-agreements --accept-source-agreements'
+  Write-Host 'Or set JAVA_HOME to a JDK folder that contains bin\java.exe (not the bin folder itself).'
   exit 1
 }
 
 $env:JAVA_HOME = $javaHome
-$env:Path = "$(Join-Path $javaHome 'bin');$env:Path"
-Write-Host "JAVA_HOME=$javaHome"
+$env:Path = (Join-Path $javaHome 'bin') + ';' + $env:Path
+Write-Host ('JAVA_HOME=' + $javaHome)
 
-$listen = netstat -ano | Select-String ':8080\s' | Select-String 'LISTENING'
+$listen = netstat -ano | Select-String ':8080' | Select-String 'LISTENING'
 if ($listen) {
-  Write-Host "8080 已被占用，旧后端还在跑。请先在那个窗口 Ctrl+C："
+  Write-Host 'Port 8080 is already in use. Stop the old backend (Ctrl+C in that window):'
   Write-Host $listen
   exit 1
 }
 
-Write-Host "使用仓库自带 Maven Wrapper 启动（首次会下载 Maven，请等一会儿）..."
-& "$PSScriptRoot\mvnw.cmd" spring-boot:run
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+Write-Host 'Starting Spring Boot with Maven Wrapper (first run downloads Maven)...'
+$mvnw = Join-Path $PSScriptRoot 'mvnw.cmd'
+$proc = Start-Process -FilePath $mvnw -ArgumentList 'spring-boot:run' -WorkingDirectory $PSScriptRoot -NoNewWindow -Wait -PassThru
+exit $proc.ExitCode
