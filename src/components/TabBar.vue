@@ -12,6 +12,7 @@ const tabIconMap: Record<string, AppIconName> = {
   write: 'edit',
   learn: 'safety',
   practice: 'plus-square',
+  chat: 'message',
   me: 'user',
 }
 

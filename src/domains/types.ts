@@ -1,6 +1,6 @@
 import type { TodayTask } from '@/types'
 
-export type DomainId = 'english' | 'programming' | 'medical'
+export type DomainId = 'english' | 'programming' | 'medical' | 'explore'
 
 export type DomainLevel = {
   id: string
@@ -12,7 +12,7 @@ export type DomainTab = {
   label: string
   /** 相对路径，如 /vocab、/d/programming/learn */
   route: string
-  icon: 'home' | 'vocab' | 'write' | 'learn' | 'practice' | 'me'
+  icon: 'home' | 'vocab' | 'write' | 'learn' | 'practice' | 'me' | 'chat'
 }
 
 export type DomainShortcut = {

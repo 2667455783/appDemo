@@ -87,6 +87,11 @@ const router = createRouter({
       meta: { tab: false },
     },
     {
+      path: '/d/explore/chat',
+      component: () => import('@/views/explore/ExploreChat.vue'),
+      meta: { tab: true },
+    },
+    {
       path: '/d/:domainId/:section',
       component: () => import('@/views/domain/DomainPlaceholder.vue'),
       meta: { tab: true },

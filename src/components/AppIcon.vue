@@ -38,6 +38,7 @@ import fileTs from '@/assets/icons/file-ts.svg?raw'
 import fileVue from '@/assets/icons/file-vue.svg?raw'
 import fileJson from '@/assets/icons/file-json.svg?raw'
 import fileScss from '@/assets/icons/file-scss.svg?raw'
+import message from '@/assets/icons/message.svg?raw'
 
 /**
  * 图标来源：
@@ -84,6 +85,7 @@ export type AppIconName =
   | 'file-vue'
   | 'file-json'
   | 'file-scss'
+  | 'message'
 
 const registry: Record<AppIconName, string> = {
   home,
@@ -124,6 +126,7 @@ const registry: Record<AppIconName, string> = {
   'file-vue': fileVue,
   'file-json': fileJson,
   'file-scss': fileScss,
+  message,
 }
 
 const props = withDefaults(

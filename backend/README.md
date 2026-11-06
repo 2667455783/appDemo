@@ -100,3 +100,24 @@ powershell -File sql/sync-local-to-prod.ps1
 - `GET/PUT /api/v1/me/study/{domainId}` Header `X-Device-Id`
 - `GET/PUT/DELETE /api/v1/me/git/repos` · `GET/PUT .../branches/{branch}`（Git 仓分支快照缓存）
 - `GET/PUT/DELETE /api/v1/me/projects` · `POST /api/v1/me/projects/zip`（个人项目）
+- `GET /api/v1/me/explore/chat/status` · `POST /api/v1/me/explore/chat`（拓展对话；Header `X-Device-Id`）
+
+### 拓展对话（服务端 AI）
+
+密钥只放服务端，**不要**写成 `VITE_*` 或打进前端包。接口走 OpenAI 兼容的 `POST {AI_BASE_URL}/chat/completions`。
+
+在 `backend/.env.dev`（本地）或 `backend/.env.prod` / 服务器环境变量（线上）写入：
+
+```env
+AI_API_KEY=你的提供商密钥
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=提供商控制台里的真实模型 ID
+AI_TIMEOUT_SECONDS=60
+```
+
+说明：
+
+- `AI_BASE_URL` 填该提供商的 OpenAI 兼容根路径，通常以 `/v1` 结尾（示例是 OpenAI 官方地址，换 DeepSeek / 其它兼容网关时改成对方文档中的地址）。
+- `AI_MODEL` **必须**填你账号里真实开通的模型 ID，仓库不会预置或编造模型名。
+- 三项都缺省时，前端「拓展」页会显示未配置，**不会**假装已回复。
+- 改完后重启 Spring Boot。本仓库没有预置可用的提供商账号；不要为了联调去购买额度。

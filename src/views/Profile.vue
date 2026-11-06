@@ -38,9 +38,12 @@ const displayMotto = computed(() => {
 const isEnglish = computed(() => user.activeDomainId === 'english')
 
 function selectDomain(id: DomainId) {
-  if (id === user.activeDomainId) return
+  if (id === user.activeDomainId) {
+    if (id === 'explore') router.replace('/d/explore/chat')
+    return
+  }
   user.setActiveDomain(id)
-  router.replace('/')
+  router.replace(id === 'explore' ? '/d/explore/chat' : '/')
 }
 
 function reset() {

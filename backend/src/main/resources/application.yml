@@ -27,6 +27,13 @@ spring:
       max-file-size: 32MB
       max-request-size: 36MB
 
+app:
+  ai:
+    api-key: ${AI_API_KEY:}
+    base-url: ${AI_BASE_URL:}
+    model: ${AI_MODEL:}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:60}
+
 logging:
   level:
     org.hibernate.SQL: info
