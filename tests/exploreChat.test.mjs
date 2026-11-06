@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   MAX_HISTORY_TURNS,
+  MISSING_EXPLORE_API_HINT,
   canSend,
   clipInput,
   notConfiguredHint,
+  rewriteExploreBackendMessage,
   toProviderMessages,
 } from '../src/services/exploreChat.ts'
 
@@ -46,5 +48,14 @@ describe('explore chat helpers', () => {
     const hint = notConfiguredHint(['AI_API_KEY', 'AI_MODEL'])
     assert.match(hint, /AI_API_KEY、AI_MODEL/)
     assert.match(hint, /backend\/.env.dev/)
+  })
+
+  it('explains production 404/empty as missing explore API, not empty reply', () => {
+    assert.equal(rewriteExploreBackendMessage(404, ''), MISSING_EXPLORE_API_HINT)
+    assert.equal(
+      rewriteExploreBackendMessage(500, 'No static resource api/v1/me/explore/chat/status.'),
+      MISSING_EXPLORE_API_HINT,
+    )
+    assert.equal(rewriteExploreBackendMessage(502, '对话服务没有返回可用内容'), '对话服务没有返回可用内容')
   })
 })

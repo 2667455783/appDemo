@@ -1,7 +1,7 @@
 import { apiRequest, apiUrl, ApiError } from '@/api/http'
 import { getDeviceId } from '@/utils/deviceId'
 import { applySseFrame, pullSseFrames } from '@/services/sse'
-import type { ChatTurn } from '@/services/exploreChat'
+import { rewriteExploreBackendMessage, type ChatTurn } from '@/services/exploreChat'
 
 export type ExploreChatStatus = {
   configured: boolean
@@ -19,8 +19,15 @@ export type ExploreChatStreamHandlers = {
   onDelta: (text: string) => void
 }
 
-export function fetchExploreChatStatus() {
-  return apiRequest<ExploreChatStatus>('/api/v1/me/explore/chat/status')
+export async function fetchExploreChatStatus() {
+  try {
+    return await apiRequest<ExploreChatStatus>('/api/v1/me/explore/chat/status')
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw new ApiError(err.code, rewriteExploreBackendMessage(err.code, err.message))
+    }
+    throw err
+  }
 }
 
 export function sendExploreChat(messages: ChatTurn[]) {
@@ -55,16 +62,29 @@ export async function streamExploreChat(
   }
 
   const ct = (res.headers.get('content-type') || '').toLowerCase()
-  if (ct.includes('application/json')) {
-    let body: { code?: number; message?: string }
+  if (!res.ok || ct.includes('application/json') || !ct.includes('text/event-stream')) {
+    let raw = ''
     try {
-      body = (await res.json()) as { code?: number; message?: string }
+      raw = await res.text()
     } catch {
-      throw new ApiError(res.status, '接口响应不是 JSON')
+      raw = ''
     }
-    throw new ApiError(body.code ?? res.status, body.message || '请求失败')
+    let message = raw
+    try {
+      const body = JSON.parse(raw) as { message?: string }
+      if (typeof body.message === 'string' && body.message.trim()) message = body.message
+    } catch {
+      /* 404 空包、HTML 代理错误等 */
+    }
+    throw new ApiError(
+      res.status || 502,
+      rewriteExploreBackendMessage(
+        res.status || 502,
+        message || (res.ok ? '对话服务没有返回可用内容' : '请求失败'),
+      ),
+    )
   }
-  if (!res.body) throw new ApiError(502, '对话服务没有返回可用内容')
+  if (!res.body) throw new ApiError(502, rewriteExploreBackendMessage(502, ''))
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder('utf-8')
