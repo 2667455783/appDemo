@@ -1,8 +1,16 @@
 # Deploy explore-chat backend to tjb666.space using the same SSH key as APK release.
-# Run from the repo root on Windows:
+# From repo root:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-explore-backend.ps1
+# From backend folder the wrapper at backend\scripts\deploy-explore-backend.ps1 calls this file.
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $PSScriptRoot
+$here = $PSScriptRoot
+$root = Split-Path -Parent $here
+if (-not (Test-Path -LiteralPath (Join-Path $root 'package.json'))) {
+  $root = Split-Path -Parent $root
+}
+if (-not (Test-Path -LiteralPath (Join-Path $root 'package.json'))) {
+  Write-Error 'Cannot find repo root (package.json). cd to C:\Users\PC\Desktop\appDemo then git pull.'
+}
 Set-Location -LiteralPath $root
 
 $cfgPath = Join-Path $root 'scripts\release.config.json'
