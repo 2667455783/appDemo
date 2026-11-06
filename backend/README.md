@@ -22,13 +22,14 @@ mvn spring-boot:run
 #   systemctl restart appdemo-backend
 ```
 
-Windows PowerShell 若提示找不到 `mvn`，用仓库自带 Wrapper（同样是默认 `dev`，继续读 `.env.dev`）：
+Windows PowerShell 不要直接敲 `mvn` / `.\mvnw.cmd`（本机常常没有 `mvn`，且 `JAVA_HOME` 未设置）。在 `backend` 目录执行：
 
 ```powershell
-cd backend
-.\mvnw.cmd spring-boot:run
-# 或：.\start-dev.ps1
+cd C:\Users\PC\Desktop\appDemo\backend
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start-dev.ps1
 ```
+
+脚本会自动查找 JDK 17+（含 Android Studio 自带 JBR）并设置当前窗口的 `JAVA_HOME`，默认 `dev` 读 `.env.dev`。看到 `Tomcat started on port 8080` 再测对话。
 
 前端另开窗口，在仓库根目录执行 `npm run dev`（端口 8000，代理到 8080）。不要加 `-Dspring-boot.run.profiles=local`，否则会改用内存 H2 且不读 `.env.dev` 里的 SiliconFlow 配置。若 8080 仍被旧进程占用，先在原来的后端窗口 Ctrl+C。
 
