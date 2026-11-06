@@ -7,11 +7,16 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xuexibaodian.app.common.ApiException;
 import com.xuexibaodian.app.config.AiProperties;
 import com.xuexibaodian.app.dto.ChatMessageDto;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class OpenAiCompatibleChatCompletionClient implements ChatCompletionClient {
@@ -22,20 +27,41 @@ public class OpenAiCompatibleChatCompletionClient implements ChatCompletionClien
 
   private final AiProperties props;
   private final ObjectMapper mapper;
-  private final RestClient restClient;
+  private final HttpClient httpClient;
 
   public OpenAiCompatibleChatCompletionClient(
-      AiProperties props, ObjectMapper mapper, RestClient aiRestClient) {
+      AiProperties props, ObjectMapper mapper, HttpClient aiHttpClient) {
     this.props = props;
     this.mapper = mapper;
-    this.restClient = aiRestClient;
+    this.httpClient = aiHttpClient;
   }
 
   @Override
   public String complete(List<ChatMessageDto> messages) {
+    StringBuilder sb = new StringBuilder();
+    try {
+      stream(
+          messages,
+          new ChatStreamSink() {
+            @Override
+            public void onDelta(String text) {
+              if (text != null) sb.append(text);
+            }
+          });
+    } catch (IOException ex) {
+      throw new ApiException(502, "无法连接对话提供商，请稍后重试");
+    }
+    String reply = sb.toString().trim();
+    if (reply.isEmpty()) throw new ApiException(502, "对话服务没有返回可用内容");
+    return reply;
+  }
+
+  @Override
+  public void stream(List<ChatMessageDto> messages, ChatStreamSink sink) throws IOException {
     String url = trimSlash(props.getBaseUrl()) + "/chat/completions";
     ObjectNode payload = mapper.createObjectNode();
     payload.put("model", props.getModel());
+    payload.put("stream", true);
     ArrayNode msgNode = payload.putArray("messages");
     ObjectNode system = msgNode.addObject();
     system.put("role", "system");
@@ -46,24 +72,56 @@ public class OpenAiCompatibleChatCompletionClient implements ChatCompletionClien
       item.put("content", m.getContent());
     }
 
-    String body;
+    HttpRequest request =
+        HttpRequest.newBuilder(URI.create(url))
+            .timeout(Duration.ofSeconds(Math.max(5, props.getTimeoutSeconds())))
+            .header("Authorization", "Bearer " + props.getApiKey())
+            .header("Content-Type", "application/json")
+            .header("Accept", "text/event-stream")
+            .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
+            .build();
+
+    HttpResponse<InputStream> response;
     try {
-      body =
-          restClient
-              .post()
-              .uri(url)
-              .contentType(MediaType.APPLICATION_JSON)
-              .header("Authorization", "Bearer " + props.getApiKey())
-              .body(payload)
-              .retrieve()
-              .body(String.class);
-    } catch (RestClientResponseException ex) {
-      throw new ApiException(502, providerErrorMessage(ex.getResponseBodyAsString(), ex.getStatusCode().value()));
-    } catch (RuntimeException ex) {
+      response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(502, "对话已取消");
+    } catch (IOException ex) {
       throw new ApiException(502, "无法连接对话提供商，请稍后重试");
     }
 
-    return extractReply(body);
+    int status = response.statusCode();
+    try (InputStream in = response.body()) {
+      if (status < 200 || status >= 300) {
+        String raw = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        throw new ApiException(502, providerErrorMessage(raw, status));
+      }
+      readSse(in, sink);
+    }
+    if (!sink.isCancelled()) sink.onComplete();
+  }
+
+  static void readSse(InputStream in, ChatStreamSink sink) throws IOException {
+    SseStreamParser parser = new SseStreamParser();
+    byte[] buf = new byte[256];
+    int n;
+    while (!sink.isCancelled() && (n = in.read(buf)) != -1) {
+      if (dispatch(parser.push(buf, 0, n), sink)) return;
+    }
+    if (!sink.isCancelled()) dispatch(parser.finish(), sink);
+  }
+
+  private static boolean dispatch(List<SseStreamParser.Event> events, ChatStreamSink sink)
+      throws IOException {
+    for (SseStreamParser.Event ev : events) {
+      if (sink.isCancelled()) return true;
+      OpenAiDeltaParser.Piece piece = OpenAiDeltaParser.parseData(ev.data());
+      if (piece.error() != null) throw new ApiException(502, piece.error());
+      if (piece.finished()) return true;
+      if (piece.text() != null && !piece.text().isEmpty()) sink.onDelta(piece.text());
+    }
+    return false;
   }
 
   static String extractReply(String body) {

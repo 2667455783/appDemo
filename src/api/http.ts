@@ -6,10 +6,14 @@ export type ApiResult<T> = { code: number; message: string; data: T }
  * 开发：走 Vite `/api` 代理到 localhost:8080
  * 真机/生产：设置 VITE_API_BASE（如 http://192.168.1.8:8080）
  */
-function apiBase(): string {
+export function apiBase(): string {
   const fromEnv = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '')
   if (fromEnv) return fromEnv
   return ''
+}
+
+export function apiUrl(path: string): string {
+  return `${apiBase()}${path}`
 }
 
 export class ApiError extends Error {

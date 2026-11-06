@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import ChatMarkdown from '@/components/ChatMarkdown.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { MAX_INPUT_CHARS, canSend } from '@/services/exploreChat'
 import { useExploreChatStore } from '@/stores/exploreChat'
@@ -27,6 +28,7 @@ async function scrollToEnd() {
 }
 
 async function onSend() {
+  if (chat.pending) return
   if (!canSubmit.value) return
   await chat.send()
   resizeField()
@@ -42,7 +44,6 @@ function onKeydown(ev: KeyboardEvent) {
   if (ev.key !== 'Enter') return
   if (ev.shiftKey) return
   if (ev.isComposing) return
-  // 桌面 Ctrl/Cmd+Enter 发送；普通 Enter 在中文输入法下容易误发，仅修饰键时发送
   if (ev.ctrlKey || ev.metaKey) {
     ev.preventDefault()
     void onSend()
@@ -50,7 +51,10 @@ function onKeydown(ev: KeyboardEvent) {
 }
 
 watch(
-  () => [chat.messages.length, chat.pending, chat.sendError],
+  () => {
+    const last = chat.messages[chat.messages.length - 1]
+    return [chat.messages.length, last?.content ?? '', chat.pending, chat.sendError]
+  },
   () => {
     void scrollToEnd()
   },
@@ -67,11 +71,15 @@ onMounted(() => {
   void scrollToEnd()
   resizeField()
 })
+
+onUnmounted(() => {
+  chat.stop()
+})
 </script>
 
 <template>
   <div class="page chat-page">
-    <PageHeader title="拓展" subtle="输入内容即可对话，支持追问" :back="false" />
+    <PageHeader title="拓展" subtle="回复会边生成边显示，支持追问" :back="false" />
 
     <div v-if="chat.statusError" class="banner" role="status">
       <p class="banner-title">{{ chat.status?.configured === false ? '尚未配置对话服务' : '暂时无法对话' }}</p>
@@ -93,21 +101,18 @@ onMounted(() => {
         class="bubble-row"
         :class="m.role === 'user' ? 'from-user' : 'from-assistant'"
       >
-        <div class="bubble" :class="m.role">
-          <p class="who">{{ m.role === 'user' ? '我' : '助手' }}</p>
-          <p class="body">{{ m.content }}</p>
-        </div>
-      </div>
-
-      <div v-if="chat.pending" class="bubble-row from-assistant">
-        <div class="bubble assistant pending">
-          <p class="who">助手</p>
-          <p class="body">正在思考…</p>
+        <div class="bubble" :class="[m.role, { pending: m.pending, failed: !!m.error }]">
+          <p class="who">
+            {{ m.role === 'user' ? '我' : m.pending ? '助手 · 正在生成' : '助手' }}
+          </p>
+          <p v-if="m.role === 'assistant' && m.pending && !m.content" class="body muted-body">正在生成…</p>
+          <ChatMarkdown v-else-if="m.role === 'assistant' && m.content" class="body" :text="m.content" />
+          <p v-else class="body">{{ m.content }}</p>
         </div>
       </div>
 
       <div v-if="chat.sendError && !chat.pending" class="error-card">
-        <p class="t-title">这次没有收到回复</p>
+        <p class="t-title">{{ chat.messages.some((m) => m.role === 'assistant' && m.content && m.error) ? '生成中断' : '这次没有收到回复' }}</p>
         <p class="page-sub">{{ chat.sendError }}</p>
         <button class="btn primary sm" type="button" style="margin-top: 10px" @click="onRetry">重试</button>
       </div>
@@ -126,11 +131,17 @@ onMounted(() => {
         enterkeyhint="send"
         @keydown="onKeydown"
       />
-      <button class="btn primary send" type="submit" :disabled="!canSubmit">
-        {{ chat.pending ? '发送中' : '发送' }}
+      <button
+        v-if="chat.pending"
+        class="btn ghost send"
+        type="button"
+        @click="chat.stop()"
+      >
+        停止
       </button>
+      <button v-else class="btn primary send" type="submit" :disabled="!canSubmit">发送</button>
     </form>
-    <p class="hint">最多 {{ MAX_INPUT_CHARS }} 字 · 空白不能发 · 回复生成时不能连点</p>
+    <p class="hint">最多 {{ MAX_INPUT_CHARS }} 字 · 空白不能发 · 生成时可停止 · 回复逐段出现</p>
   </div>
 </template>
 
@@ -193,7 +204,10 @@ onMounted(() => {
   background: var(--paper-2);
 }
 .bubble.pending {
-  opacity: 0.75;
+  opacity: 0.9;
+}
+.bubble.failed {
+  border-color: color-mix(in srgb, var(--coral) 35%, var(--line));
 }
 .who {
   font-size: 11px;
@@ -206,6 +220,9 @@ onMounted(() => {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.muted-body {
+  color: var(--muted);
 }
 .error-card {
   background: var(--coral-soft);

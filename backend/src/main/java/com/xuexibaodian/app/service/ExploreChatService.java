@@ -6,6 +6,7 @@ import com.xuexibaodian.app.dto.ChatMessageDto;
 import com.xuexibaodian.app.dto.ChatReplyDto;
 import com.xuexibaodian.app.dto.ChatRequest;
 import com.xuexibaodian.app.dto.ChatStatusDto;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class ExploreChatService {
     return dto;
   }
 
-  public ChatReplyDto chat(ChatRequest request) {
+  public List<ChatMessageDto> prepare(ChatRequest request) {
     if (!props.isConfigured()) {
       List<String> missing = props.missingEnvKeys();
       throw new ApiException(
@@ -48,11 +49,20 @@ public class ExploreChatService {
     if (!"user".equals(cleaned.get(cleaned.size() - 1).getRole())) {
       throw new ApiException(400, "最后一条必须是用户消息");
     }
+    return cleaned;
+  }
+
+  public ChatReplyDto chat(ChatRequest request) {
+    List<ChatMessageDto> cleaned = prepare(request);
     String reply = client.complete(cleaned);
     if (!StringUtils.hasText(reply)) {
       throw new ApiException(502, "对话服务没有返回可用内容");
     }
     return new ChatReplyDto(reply.trim());
+  }
+
+  public void stream(ChatRequest request, ChatStreamSink sink) throws IOException {
+    client.stream(prepare(request), sink);
   }
 
   static List<ChatMessageDto> sanitize(List<ChatMessageDto> incoming) {

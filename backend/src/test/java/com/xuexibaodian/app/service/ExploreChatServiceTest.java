@@ -11,6 +11,7 @@ import com.xuexibaodian.app.dto.ChatMessageDto;
 import com.xuexibaodian.app.dto.ChatReplyDto;
 import com.xuexibaodian.app.dto.ChatRequest;
 import com.xuexibaodian.app.dto.ChatStatusDto;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -88,6 +89,45 @@ class ExploreChatServiceTest {
     req.setMessages(List.of(msg("assistant", "我先说")));
     ApiException ex = assertThrows(ApiException.class, () -> service.chat(req));
     assertEquals(400, ex.getCode());
+  }
+
+  @Test
+  void streamForwardsIncrementalChunksBeforeComplete() throws Exception {
+    List<Long> at = new ArrayList<>();
+    List<String> texts = new ArrayList<>();
+    ExploreChatService service =
+        new ExploreChatService(
+            configured(),
+            new ChatCompletionClient() {
+              @Override
+              public String complete(List<ChatMessageDto> messages) {
+                return "unused";
+              }
+
+              @Override
+              public void stream(List<ChatMessageDto> messages, ChatStreamSink sink) throws IOException {
+                try {
+                  sink.onDelta("现");
+                  Thread.sleep(50);
+                  sink.onDelta("在");
+                  sink.onComplete();
+                } catch (InterruptedException e) {
+                  Thread.currentThread().interrupt();
+                  throw new IOException(e);
+                }
+              }
+            });
+    service.stream(
+        userRequest("hi"),
+        new ChatStreamSink() {
+          @Override
+          public void onDelta(String text) {
+            texts.add(text);
+            at.add(System.currentTimeMillis());
+          }
+        });
+    assertEquals(List.of("现", "在"), texts);
+    assertTrue(at.get(1) - at.get(0) >= 30);
   }
 
   private static AiProperties configured() {

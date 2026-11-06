@@ -100,7 +100,8 @@ powershell -File sql/sync-local-to-prod.ps1
 - `GET/PUT /api/v1/me/study/{domainId}` Header `X-Device-Id`
 - `GET/PUT/DELETE /api/v1/me/git/repos` · `GET/PUT .../branches/{branch}`（Git 仓分支快照缓存）
 - `GET/PUT/DELETE /api/v1/me/projects` · `POST /api/v1/me/projects/zip`（个人项目）
-- `GET /api/v1/me/explore/chat/status` · `POST /api/v1/me/explore/chat`（拓展对话；Header `X-Device-Id`）
+- `GET /api/v1/me/explore/chat/status` · `POST /api/v1/me/explore/chat`（拓展对话整段 JSON；Header `X-Device-Id`）
+- `POST /api/v1/me/explore/chat/stream`（拓展对话 **SSE 流式**；`text/event-stream`，同样需要 `X-Device-Id`）
 
 ### 拓展对话（服务端 AI）
 
@@ -121,3 +122,26 @@ AI_TIMEOUT_SECONDS=60
 - `AI_MODEL` **必须**填你账号里真实开通的模型 ID，仓库不会预置或编造模型名。
 - 三项都缺省时，前端「拓展」页会显示未配置，**不会**假装已回复。
 - 改完后重启 Spring Boot。本仓库没有预置可用的提供商账号；不要为了联调去购买额度。
+- App 对话走 **流式**：后端向提供商发 `stream: true`，把 `delta.content` 立刻转成 SSE `event: delta`，前端边收边渲染。不要用整段 JSON 等齐再显示。
+
+### 流式反代（必须关缓冲，否则会「突然一整段」）
+
+Vite 开发代理已设 `timeout: 0` / `proxyTimeout: 0`。线上 nginx 需要：
+
+```nginx
+# 至少覆盖对话流；也可对整个 /api/ 关闭缓冲
+location /api/v1/me/explore/chat/stream {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Device-Id $http_x_device_id;
+    proxy_set_header Connection '';
+    proxy_buffering off;
+    proxy_cache off;
+    gzip off;
+    proxy_read_timeout 120s;
+    add_header X-Accel-Buffering no always;
+}
+```
+
+参考片段：`scripts/nginx-appdemo-api.stream.conf`。后端响应已带 `X-Accel-Buffering: no`、`Cache-Control: no-cache, no-transform`。改 nginx 后 `nginx -t && systemctl reload nginx`，不必为看流式而重启用户本机 H2。
