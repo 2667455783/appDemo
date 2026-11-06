@@ -8,10 +8,21 @@ const router = createRouter({
     { path: '/', component: () => import('@/views/Home.vue'), meta: { tab: true } },
     { path: '/vocab', component: () => import('@/views/vocab/VocabHub.vue'), meta: { tab: true } },
     { path: '/vocab/wrong', component: () => import('@/views/vocab/VocabWrongBook.vue'), meta: { tab: false } },
+    { path: '/vocab/retest', component: () => import('@/views/vocab/VocabRetestBook.vue'), meta: { tab: false } },
     { path: '/writing', component: () => import('@/views/writing/WritingHub.vue'), meta: { tab: true } },
     { path: '/writing/fill', component: () => import('@/views/writing/TemplateFill.vue'), meta: { tab: false } },
     { path: '/train', redirect: '/vocab' },
     { path: '/train/vocab', component: () => import('@/views/vocab/VocabPractice.vue'), meta: { tab: false } },
+    {
+      path: '/train/vocab-retest',
+      component: () => import('@/views/vocab/VocabRetestPractice.vue'),
+      meta: { tab: false },
+    },
+    {
+      path: '/train/vocab-dictation',
+      component: () => import('@/views/vocab/VocabDictationPractice.vue'),
+      meta: { tab: false },
+    },
     {
       path: '/train/dictionary',
       component: () => import('@/views/vocab/VocabDictionary.vue'),

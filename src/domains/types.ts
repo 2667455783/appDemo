@@ -25,6 +25,8 @@ export type TodayTaskContext = {
   phase: 'normal' | 'sprint' | 'final'
   dueCount: number
   wrongCount: number
+  /** 昨日入队、仍待复测的词数（英语复测本） */
+  yesterdayRetestCount?: number
   doneIds: Set<string>
 }
 

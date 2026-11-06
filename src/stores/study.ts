@@ -18,7 +18,7 @@ import type {
   VocabWord,
 } from '@/types'
 import { newCard, reviewCard } from '@/utils/srs'
-import { loadState, saveState, todayISO, uid } from '@/utils/storage'
+import { addDays, loadState, saveState, todayISO, uid } from '@/utils/storage'
 
 type StudyState = {
   vocab: Record<string, VocabCardState>
@@ -29,6 +29,10 @@ type StudyState = {
   doneTaskIds: string[]
   doneTaskDate: string
   radarBoost: Record<string, number>
+  /** 巩固默写队列归属日 YYYY-MM-DD */
+  dictationDate: string
+  /** 昨日巩固答对、待默写的词 id */
+  dictationWordIds: string[]
 }
 
 const empty: StudyState = {
@@ -40,6 +44,8 @@ const empty: StudyState = {
   doneTaskIds: [],
   doneTaskDate: '',
   radarBoost: {},
+  dictationDate: '',
+  dictationWordIds: [],
 }
 
 function storageKey(domainId: DomainId) {
@@ -64,11 +70,14 @@ function loadDomainStudy(domainId: DomainId): StudyState {
   if (domainId === 'english') migrateLegacyEnglish()
   const saved = loadState<StudyState>(storageKey(domainId), empty)
   const today = todayISO()
+  const dictationFresh = saved.dictationDate === today
   return {
     ...empty,
     ...saved,
     doneTaskIds: saved.doneTaskDate === today ? saved.doneTaskIds : [],
     doneTaskDate: saved.doneTaskDate === today ? saved.doneTaskDate : today,
+    dictationDate: dictationFresh ? saved.dictationDate : '',
+    dictationWordIds: dictationFresh ? saved.dictationWordIds ?? [] : [],
   }
 }
 
@@ -89,6 +98,8 @@ export const useStudyStore = defineStore('study', () => {
   const doneTaskIds = ref<string[]>(initial.doneTaskIds)
   const doneTaskDate = ref(initial.doneTaskDate)
   const radarBoost = ref<Record<string, number>>(initial.radarBoost)
+  const dictationDate = ref(initial.dictationDate)
+  const dictationWordIds = ref<string[]>(initial.dictationWordIds)
 
   function snapshot(): StudyState {
     return {
@@ -100,6 +111,8 @@ export const useStudyStore = defineStore('study', () => {
       doneTaskIds: doneTaskIds.value,
       doneTaskDate: doneTaskDate.value,
       radarBoost: radarBoost.value,
+      dictationDate: dictationDate.value,
+      dictationWordIds: dictationWordIds.value,
     }
   }
 
@@ -169,6 +182,14 @@ export const useStudyStore = defineStore('study', () => {
       radarBoost.value = remote.radarBoost as Record<string, number>
       changed = true
     }
+    if (remote.dictationDate != null) {
+      dictationDate.value = remote.dictationDate
+      changed = true
+    }
+    if (Array.isArray(remote.dictationWordIds)) {
+      dictationWordIds.value = remote.dictationWordIds as string[]
+      changed = true
+    }
     if (changed) flushLocal()
   }
 
@@ -181,6 +202,8 @@ export const useStudyStore = defineStore('study', () => {
     doneTaskIds.value = s.doneTaskIds
     doneTaskDate.value = s.doneTaskDate
     radarBoost.value = s.radarBoost
+    dictationDate.value = s.dictationDate
+    dictationWordIds.value = s.dictationWordIds
   }
 
   function switchDomain(next: DomainId) {
@@ -230,6 +253,20 @@ export const useStudyStore = defineStore('study', () => {
       .map(([id]) => id),
   )
 
+  const retestWordIds = computed(() =>
+    Object.entries(vocab.value)
+      .filter(([, c]) => !!c.pendingRetestOn)
+      .sort((a, b) => (b[1].pendingRetestOn || '').localeCompare(a[1].pendingRetestOn || ''))
+      .map(([id]) => id),
+  )
+
+  const yesterdayRetestWordIds = computed(() => {
+    const yesterday = addDays(todayISO(), -1)
+    return Object.entries(vocab.value)
+      .filter(([, c]) => c.pendingRetestOn === yesterday)
+      .map(([id]) => id)
+  })
+
   const openErrors = computed(() => errors.value.filter((e) => e.status === 'open'))
 
   const latestReport = computed(() => reports.value[0] ?? null)
@@ -263,6 +300,7 @@ export const useStudyStore = defineStore('study', () => {
       phase: user().phase,
       dueCount: dueWordIds.value.length,
       wrongCount: wrongWordIds.value.length,
+      yesterdayRetestCount: yesterdayRetestWordIds.value.length,
       doneIds: new Set(doneTaskIds.value),
     })
   })
@@ -274,10 +312,59 @@ export const useStudyStore = defineStore('study', () => {
 
   function answerVocab(id: string, remembered: boolean) {
     const current = ensureCard(id)
-    vocab.value = { ...vocab.value, [id]: reviewCard(current, remembered) }
+    const next = reviewCard(current, remembered)
+    vocab.value = {
+      ...vocab.value,
+      [id]: remembered
+        ? { ...next, pendingRetestOn: todayISO() }
+        : { ...next, pendingRetestOn: undefined },
+    }
+    if (remembered) enqueueDictation(id)
     user().markStudy()
     completeTask('vocab')
     completeTask('final-vocab')
+    flush()
+  }
+
+  /** 复测本四选一：对则出队；错则打回学习态并仍待测 */
+  function answerRetest(id: string, ok: boolean) {
+    const current = ensureCard(id)
+    if (ok) {
+      vocab.value = {
+        ...vocab.value,
+        [id]: { ...current, pendingRetestOn: undefined },
+      }
+    } else {
+      const next = reviewCard(current, false)
+      vocab.value = {
+        ...vocab.value,
+        [id]: {
+          ...next,
+          pendingRetestOn: current.pendingRetestOn || todayISO(),
+        },
+      }
+    }
+    user().markStudy()
+    if (!yesterdayRetestWordIds.value.length) completeTask('yesterday-retest')
+    flush()
+  }
+
+  /** 今日背词「记住了」或昨日巩固答对后入默写队列；跨日自动清空再写入 */
+  function enqueueDictation(id: string) {
+    const today = todayISO()
+    if (dictationDate.value !== today) {
+      dictationDate.value = today
+      dictationWordIds.value = []
+    }
+    if (!dictationWordIds.value.includes(id)) {
+      dictationWordIds.value = [...dictationWordIds.value, id]
+      flush()
+    }
+  }
+
+  function clearDictation() {
+    dictationDate.value = ''
+    dictationWordIds.value = []
     flush()
   }
 
@@ -447,10 +534,14 @@ export const useStudyStore = defineStore('study', () => {
     reports,
     gapPlan,
     gapGeneratedAt,
+    dictationDate,
+    dictationWordIds,
     visibleWords,
     dueWords,
     dueWordIds,
     wrongWordIds,
+    retestWordIds,
+    yesterdayRetestWordIds,
     openErrors,
     latestReport,
     radar,
@@ -458,6 +549,9 @@ export const useStudyStore = defineStore('study', () => {
     todayTasks,
     ensureCard,
     answerVocab,
+    answerRetest,
+    enqueueDictation,
+    clearDictation,
     completeTask,
     pushError,
     updateErrorCause,

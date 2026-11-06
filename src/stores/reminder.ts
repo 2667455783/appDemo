@@ -27,6 +27,7 @@ export const useReminderStore = defineStore('reminder', () => {
   const hour = ref(saved.hour)
   const minute = ref(saved.minute)
   const lastError = ref('')
+  const inexact = ref(false)
 
   const timeLabel = computed(() => formatReminderTime(hour.value, minute.value))
   const statusLabel = computed(() => (enabled.value ? `每天 ${timeLabel.value}` : '未开启'))
@@ -53,6 +54,7 @@ export const useReminderStore = defineStore('reminder', () => {
     lastError.value = ''
     persist()
     const result = await syncStudyReminders(snapshot(), reminderCopy())
+    inexact.value = result === 'inexact'
     if (result === 'denied') {
       enabled.value = false
       persist()
@@ -64,6 +66,7 @@ export const useReminderStore = defineStore('reminder', () => {
   async function setEnabled(next: boolean) {
     enabled.value = next
     if (!next) {
+      inexact.value = false
       persist()
       await cancelStudyReminders()
       return
@@ -89,7 +92,8 @@ export const useReminderStore = defineStore('reminder', () => {
 
   async function replenish() {
     if (!enabled.value) return
-    await replenishStudyReminders(snapshot(), reminderCopy())
+    const result = await replenishStudyReminders(snapshot(), reminderCopy())
+    if (result) inexact.value = result === 'inexact'
   }
 
   return {
@@ -99,6 +103,7 @@ export const useReminderStore = defineStore('reminder', () => {
     timeLabel,
     statusLabel,
     lastError,
+    inexact,
     setEnabled,
     setTime,
     reschedule,

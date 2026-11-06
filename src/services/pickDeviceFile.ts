@@ -50,7 +50,7 @@ export async function pickedToBrowserFiles(picked: PickedDeviceFile[]): Promise<
   return out
 }
 
-/** 取消正在进行的微信聊天选文件等待 */
+/** 取消「用其他应用打开」等待（GET_CONTENT 选文件路径一般不需要） */
 export async function cancelDeviceFilePick(): Promise<void> {
   if (!canUseNativeFilePick()) return
   await PickDeviceFile.cancelPick()

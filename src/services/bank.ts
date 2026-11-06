@@ -93,6 +93,45 @@ export async function fetchVocabByIds(ids: string[]): Promise<VocabWord[]> {
   return delay(ids.map((id) => map.get(id)).filter((w): w is VocabWord => !!w))
 }
 
+export type VocabMeaningQuiz = {
+  options: string[]
+  answerIndex: number
+}
+
+/** 看英文选中文释义：1 正确 + 3 干扰（同等级优先） */
+export function buildVocabMeaningQuiz(word: VocabWord, pool: VocabWord[]): VocabMeaningQuiz {
+  const correct = (word.meaning || '').trim()
+  const sameLevel = pool.filter(
+    (w) =>
+      w.id !== word.id &&
+      (w.level === 'both' || w.level === word.level || word.level === 'both'),
+  )
+  const others = pool.filter((w) => w.id !== word.id)
+  const pickMeanings = (src: VocabWord[]) => {
+    const seen = new Set<string>(correct ? [correct] : [])
+    const out: string[] = []
+    for (const w of shuffle(src)) {
+      const m = (w.meaning || '').trim()
+      if (!m || seen.has(m)) continue
+      seen.add(m)
+      out.push(m)
+      if (out.length >= 3) break
+    }
+    return out
+  }
+  let distractors = pickMeanings(sameLevel)
+  if (distractors.length < 3) {
+    const extra = pickMeanings(others).filter((m) => !distractors.includes(m))
+    distractors = [...distractors, ...extra].slice(0, 3)
+  }
+  while (distractors.length < 3) {
+    distractors.push(`（干扰项 ${distractors.length + 1}）`)
+  }
+  const options = shuffle([correct || word.word, ...distractors.slice(0, 3)])
+  const answerIndex = Math.max(0, options.indexOf(correct || word.word))
+  return { options, answerIndex }
+}
+
 export async function fetchListening(opts: {
   level: ExamLevel
   kind?: ListeningItem['kind']

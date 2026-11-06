@@ -19,6 +19,8 @@ onMounted(async () => {
 
 const dueCount = computed(() => study.dueWordIds.length)
 const wrongCount = computed(() => study.wrongWordIds.length)
+const retestCount = computed(() => study.retestWordIds.length)
+const dictationCount = computed(() => study.dictationWordIds.length)
 </script>
 
 <template>
@@ -62,6 +64,24 @@ const wrongCount = computed(() => study.wrongWordIds.length)
         <p class="page-sub">没记住的词优先复习</p>
       </div>
       <span class="tag" :class="wrongCount ? 'ink' : 'green'">{{ wrongCount ? `${wrongCount} 词` : '清空' }}</span>
+    </button>
+
+    <button class="card task" type="button" @click="router.push('/vocab/retest')">
+      <div>
+        <p class="t-title">复测本</p>
+        <p class="page-sub">已记住的词 · 四选一巩固</p>
+      </div>
+      <span class="tag" :class="retestCount ? 'ink' : 'green'">{{ retestCount ? `${retestCount} 词` : '清空' }}</span>
+    </button>
+
+    <button class="card task" type="button" @click="router.push('/train/vocab-dictation')">
+      <div>
+        <p class="t-title">巩固默写</p>
+        <p class="page-sub">今日记住 / 昨日巩固答对 · 只看译文默写</p>
+      </div>
+      <span class="tag" :class="dictationCount ? 'ink' : 'green'">
+        {{ dictationCount ? `${dictationCount} 词` : '暂无' }}
+      </span>
     </button>
   </div>
 </template>

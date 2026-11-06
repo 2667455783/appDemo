@@ -57,6 +57,8 @@ export type VocabCardState = {
   correct: number
   wrong: number
   status: 'new' | 'learning' | 'review'
+  /** 复测本入队日 YYYY-MM-DD；空/缺省表示不在复测本 */
+  pendingRetestOn?: string
 }
 
 export type ChoiceQuestion = {

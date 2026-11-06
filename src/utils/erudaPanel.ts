@@ -20,6 +20,11 @@ declare global {
   }
 }
 
+/** iframe 内节点与宿主不同 realm，不能用 instanceof Element，改用 nodeType 判断 */
+function isElementNode(n: unknown): n is Element {
+  return !!n && (n as Node).nodeType === 1
+}
+
 function forceShow() {
   eruda.show('console')
   try {
@@ -102,32 +107,38 @@ function installInspectBridge(iframe: HTMLIFrameElement) {
     hl.style.height = `${r.height}px`
   }
 
+  /** 触摸事件的 target 固定为起点元素，改用坐标取当前手指下的元素 */
+  const pickTarget = (e: Event): Element | null => {
+    const te = e as TouchEvent
+    const touch = te.touches?.[0] ?? te.changedTouches?.[0]
+    if (touch) {
+      const hit = doc.elementFromPoint(touch.clientX, touch.clientY)
+      if (isElementNode(hit)) return hit
+    }
+    const t = e.target
+    return isElementNode(t) ? t : null
+  }
+
   const onMove = (e: Event) => {
     if (!enabled) return
-    const t = e.target
-    if (t instanceof Element && t.id !== '__lr_inspect_hl') moveHl(t)
+    const t = pickTarget(e)
+    if (t && t.id !== '__lr_inspect_hl') moveHl(t)
   }
 
   const onDown = (e: Event) => {
     if (!enabled) return
     if (e.cancelable) e.preventDefault()
     e.stopPropagation()
-    const t = e.target
-    const el =
-      t instanceof HTMLElement
-        ? t.id === '__lr_inspect_hl'
-          ? null
-          : t
-        : t instanceof Element && t.parentElement
-          ? t.parentElement
-          : null
-    if (!el) return
-    win.__localrunLastEl = el
-    try {
-      win.parent.postMessage({ __localrun: 1, type: 'inspect-pick' }, '*')
-    } catch {
-      /* ignore */
-    }
+    const t = pickTarget(e)
+    if (!t || t.id === '__lr_inspect_hl') return
+    // 立即关闭，避免 touchstart/pointerdown/mousedown 连发导致重复选中
+    enabled = false
+    doc.documentElement.classList.remove('__lr_inspecting')
+    if (hl) hl.style.display = 'none'
+    win.__localrunLastEl = t
+    // 这段代码跑在宿主 realm，postMessage 的 e.source 会是宿主自身而不是 iframe，
+    // 会被 LocalRunPanel.onMessage 的来源校验丢掉；同一模块内直接调用即可。
+    window.setTimeout(() => handleInspectPickFromPreview(), 0)
   }
 
   win.__localrunInspect = {
@@ -243,8 +254,8 @@ export function handleInspectPickFromPreview() {
   if (!inspecting) return
   try {
     const el = previewFrame?.contentWindow?.__localrunInspect?.getLastEl()
-    if (el instanceof HTMLElement) {
-      eruda.get('elements')?.select(el)
+    if (isElementNode(el)) {
+      eruda.get('elements')?.select(el as HTMLElement)
     }
   } catch {
     /* ignore */

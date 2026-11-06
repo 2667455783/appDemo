@@ -72,9 +72,21 @@ function grade(ok: boolean) {
     <div v-else-if="!current || done" class="card">
       <p>本组结束。记住 {{ remembered }} · 再看 {{ forgot }}。</p>
       <p class="page-sub">错的会在明天再次到期。连续做对才会拉长间隔。</p>
-      <div class="grid2" style="margin-top: 12px">
-        <button class="btn primary" type="button" @click="load">换一组</button>
-        <button class="btn ghost" type="button" @click="router.replace('/')">回首页</button>
+      <div class="end-actions">
+        <button
+          v-if="study.dictationWordIds.length"
+          class="btn primary block"
+          type="button"
+          @click="router.replace('/train/vocab-dictation')"
+        >
+          去默写记住的词（{{ study.dictationWordIds.length }}）
+        </button>
+        <div class="grid2">
+          <button class="btn" :class="study.dictationWordIds.length ? 'ghost' : 'primary'" type="button" @click="load">
+            换一组
+          </button>
+          <button class="btn ghost" type="button" @click="router.replace('/')">回首页</button>
+        </div>
       </div>
     </div>
 
@@ -140,6 +152,12 @@ function grade(ok: boolean) {
 }
 .mean {
   animation: in 0.2s ease;
+}
+.end-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 @keyframes in {
   from {

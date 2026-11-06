@@ -14,6 +14,9 @@ export type ReminderCopy = {
   body: string
 }
 
+/** inexact：Android 未授予精确闹钟，系统可能延后提醒 */
+export type ScheduleResult = 'ok' | 'inexact' | 'denied' | 'unsupported'
+
 const SMALL_ICON = 'ic_stat_reminder'
 
 function isNative(): boolean {
@@ -86,19 +89,19 @@ function iosDailyNotification(state: ReminderState, copy: ReminderCopy): LocalNo
 export async function scheduleStudyReminders(
   state: ReminderState,
   copy: ReminderCopy,
-): Promise<'ok' | 'denied' | 'unsupported'> {
+): Promise<ScheduleResult> {
   if (!isNative()) return 'unsupported'
   const granted = await requestReminderPermission()
   if (!granted) return 'denied'
 
   if (useNativeStudyReminder()) {
-    await StudyReminder.scheduleDaily({
+    const { exact } = await StudyReminder.scheduleDaily({
       hour: state.hour,
       minute: state.minute,
       title: copy.title,
       body: copy.body,
     })
-    return 'ok'
+    return exact === false ? 'inexact' : 'ok'
   }
 
   await ensureChannel()
@@ -115,13 +118,15 @@ export async function syncStudyReminders(state: ReminderState, copy: ReminderCop
   return scheduleStudyReminders(state, copy)
 }
 
-export async function replenishStudyReminders(state: ReminderState, copy: ReminderCopy) {
+export async function replenishStudyReminders(
+  state: ReminderState,
+  copy: ReminderCopy,
+): Promise<ScheduleResult | undefined> {
   if (!state.enabled || !isNative()) return
   if (useNativeStudyReminder()) {
-    const { scheduled } = await StudyReminder.isScheduled()
-    if (scheduled) return
-    await scheduleStudyReminders(state, copy)
-    return
+    const { scheduled, exact } = await StudyReminder.isScheduled()
+    if (scheduled) return exact === false ? 'inexact' : 'ok'
+    return scheduleStudyReminders(state, copy)
   }
   try {
     const pending = await LocalNotifications.getPending()
@@ -131,6 +136,14 @@ export async function replenishStudyReminders(state: ReminderState, copy: Remind
   } catch {
     await scheduleStudyReminders(state, copy)
   }
+}
+
+export async function openExactAlarmSettings() {
+  if (useNativeStudyReminder()) await StudyReminder.openExactAlarmSettings()
+}
+
+export async function openAppBackgroundSettings() {
+  if (useNativeStudyReminder()) await StudyReminder.openAppSettings()
 }
 
 export function bindReminderTap(router: Router) {

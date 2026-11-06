@@ -1,7 +1,7 @@
 {
   "name": "appdemo",
   "private": true,
-  "version": "1.0.35",
+  "version": "1.0.38",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -51,6 +51,7 @@
     "cos-nodejs-sdk-v5": "^3.0.0",
     "typescript": "~6.0.2",
     "vite": "^5.4.11",
+    "vue-template-compiler": "^2.7.16",
     "vue-tsc": "^3.3.11"
   }
 }

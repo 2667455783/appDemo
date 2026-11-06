@@ -34,6 +34,8 @@ export type StudySnapshotPayload = {
   doneTaskIds?: unknown
   doneTaskDate?: string
   radarBoost?: Record<string, unknown>
+  dictationDate?: string
+  dictationWordIds?: string[]
 }
 
 export function bootstrapGuest() {

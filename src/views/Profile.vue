@@ -91,7 +91,7 @@ function reset() {
         </button>
       </div>
       <p class="page-sub" style="margin-top: 8px">
-        切换学科后，学习进度按学科分别保存。
+        默认英语；切换后会记住，下次打开仍是你退出前选的学科。进度按学科分别保存。
       </p>
     </div>
 

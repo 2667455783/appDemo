@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import { useReminderStore } from '@/stores/reminder'
+import { openAppBackgroundSettings, openExactAlarmSettings } from '@/services/reminder'
 
 const router = useRouter()
 const reminder = useReminderStore()
@@ -24,6 +25,16 @@ watch(
 
 const hint = '到点会推送系统通知，点击可进入训练页'
 const native = Capacitor.isNativePlatform()
+const android = Capacitor.getPlatform() === 'android'
+
+async function openSettings(kind: 'exact' | 'app') {
+  try {
+    if (kind === 'exact') await openExactAlarmSettings()
+    else await openAppBackgroundSettings()
+  } catch {
+    /* 旧版安装包没有该原生方法时忽略 */
+  }
+}
 
 onMounted(() => {
   if (reminder.enabled && native) void reminder.replenish()
@@ -103,12 +114,26 @@ function pad(n: number) {
       <p v-if="reminder.lastError" class="page-sub err">{{ reminder.lastError }}</p>
       <p v-else-if="reminder.enabled" class="page-sub ok">已设置：{{ reminder.statusLabel }}</p>
       <p v-else class="page-sub">请先开启每日提醒，再设置提醒时间</p>
+      <template v-if="android && reminder.enabled && reminder.inexact">
+        <p class="page-sub err">系统未允许「闹钟和提醒」，提醒可能被延后</p>
+        <button class="btn sm ghost" style="margin-top: 8px" type="button" @click="openSettings('exact')">
+          去开启闹钟权限
+        </button>
+      </template>
     </div>
 
     <div class="card tips">
       <p class="section-h">说明</p>
       <p class="page-sub">· 首次开启会请求通知权限，请点允许</p>
       <p class="page-sub">· 若今天所选时刻已过，将从明天该时刻起提醒</p>
+      <template v-if="android">
+        <p class="page-sub">
+          · 小米/华为/OPPO/vivo 等手机划掉后台或一键清理会强制停止 App，闹钟会被系统一并清除；请在应用设置里打开「自启动」，并把电池/耗电设为「无限制」
+        </p>
+        <button class="btn sm ghost" style="margin-top: 8px" type="button" @click="openSettings('app')">
+          打开应用设置
+        </button>
+      </template>
     </div>
   </div>
 </template>

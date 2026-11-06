@@ -9,6 +9,7 @@ export function newCard(): VocabCardState {
     correct: 0,
     wrong: 0,
     status: 'new',
+    pendingRetestOn: undefined,
   }
 }
 

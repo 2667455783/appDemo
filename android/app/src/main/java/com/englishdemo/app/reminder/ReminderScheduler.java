@@ -16,7 +16,7 @@ import com.englishdemo.app.R;
 
 import java.util.Calendar;
 
-final class ReminderScheduler {
+public final class ReminderScheduler {
 
     static final String PREFS = "study_reminder";
     static final String KEY_ENABLED = "enabled";
@@ -56,29 +56,67 @@ final class ReminderScheduler {
 
     static void cancel(Context context) {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        PendingIntent pi = buildAlarmPendingIntent(context);
         if (am != null) {
-            am.cancel(buildAlarmPendingIntent(context));
+            am.cancel(pi);
         }
+        pi.cancel();
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) {
             nm.cancel(NOTIFICATION_ID);
         }
     }
 
-    static void scheduleNext(Context context) {
+    /** 开关开着但系统里没闹钟时补排；不触碰已存在的闹钟 */
+    public static void ensureScheduled(Context context) {
+        if (!isEnabled(context) || hasPendingAlarm(context)) return;
+        scheduleNext(context);
+    }
+
+    /** 系统中是否真的挂着闹钟（强停 / 覆盖安装后会被系统清掉，开关仍为 true） */
+    static boolean hasPendingAlarm(Context context) {
+        Intent intent = new Intent(context, ReminderAlarmReceiver.class);
+        intent.setAction(ReminderAlarmReceiver.ACTION_FIRE);
+        int flags = PendingIntent.FLAG_NO_CREATE;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        return PendingIntent.getBroadcast(context, ALARM_ID, intent, flags) != null;
+    }
+
+    static boolean canScheduleExact(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true;
+        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        return am != null && am.canScheduleExactAlarms();
+    }
+
+    /** @return true 精确闹钟；false 退化为非精确（或未排上） */
+    static boolean scheduleNext(Context context) {
         SharedPreferences p = prefs(context);
-        if (!p.getBoolean(KEY_ENABLED, false)) return;
+        if (!p.getBoolean(KEY_ENABLED, false)) return false;
 
         int hour = p.getInt(KEY_HOUR, 20);
         int minute = p.getInt(KEY_MINUTE, 0);
         long trigger = nextTriggerMillis(hour, minute);
 
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (am == null) return;
+        if (am == null) return false;
 
         PendingIntent pi = buildAlarmPendingIntent(context);
-        AlarmManager.AlarmClockInfo info = new AlarmManager.AlarmClockInfo(trigger, pi);
-        am.setAlarmClock(info, pi);
+        if (canScheduleExact(context)) {
+            try {
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(trigger, pi), pi);
+                return true;
+            } catch (SecurityException ignored) {
+                // 精确闹钟权限被收回，走下面的非精确兜底
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi);
+        } else {
+            am.set(AlarmManager.RTC_WAKEUP, trigger, pi);
+        }
+        return false;
     }
 
     static long nextTriggerMillis(int hour, int minute) {

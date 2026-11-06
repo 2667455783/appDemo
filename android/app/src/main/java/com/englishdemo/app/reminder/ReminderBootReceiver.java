@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-/** 重启后恢复闹钟排程 */
+/** 重启、覆盖安装、精确闹钟权限变化后恢复闹钟排程（这些场景系统会清掉已排的闹钟） */
 public class ReminderBootReceiver extends BroadcastReceiver {
 
     @Override

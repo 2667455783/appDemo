@@ -75,7 +75,7 @@ const fileSourceKind = ref<'files' | 'folder'>('files')
 const fileSourceHint = computed(() =>
   fileSourceKind.value === 'folder'
     ? '手机端请多选文件夹内的文件（系统不一定支持直接选文件夹）'
-    : '选「微信聊天文件」会打开微信：在聊天里打开文件 →「用其他应用打开」→ 学习宝典',
+    : '选「微信聊天文件」会打开微信内的文件选择；也可先在微信另存后再选',
 )
 const linkedRepo = ref<{ label: string; provider: string } | null>(null)
 const lastOpen = ref<OpenTarget | null>(null)
@@ -380,6 +380,7 @@ async function openLocal(target: OpenTarget | null = lastOpen.value, opts: { for
 
       sbStatus.value = `正在从 ${parsed.provider} 拉取文件…`
       const cacheKey = `${target.value}@@${parsed.ref || ''}`
+      if (opts.forceRemote) repoCache.delete(cacheKey)
       let fetched = repoCache.get(cacheKey)
       if (!fetched) {
         fetched = await fetchPublicRepo(parsed)
@@ -734,8 +735,7 @@ async function onFileSourcePicked(source: FilePickSource) {
   }
   try {
     if (source === 'wechat') {
-      sbStatus.value =
-        '已打开微信：请到聊天记录里打开文件 →「用其他应用打开」→ 学习宝典'
+      sbStatus.value = '正在打开微信文件选择…'
     }
     const list = await pickDeviceFiles({
       source,

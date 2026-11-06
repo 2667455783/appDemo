@@ -1,6 +1,18 @@
 import type { DomainManifest, TodayTaskContext } from '@/domains/types'
 import type { TodayTask } from '@/types'
 
+function yesterdayRetestTask(ctx: TodayTaskContext): TodayTask {
+  const n = ctx.yesterdayRetestCount ?? 0
+  return {
+    id: 'yesterday-retest',
+    title: '昨日巩固',
+    desc: n ? `${n} 词待巩固` : '昨日暂无待巩固',
+    minutes: 8,
+    route: '/train/vocab-retest?scope=yesterday',
+    done: n === 0 || ctx.doneIds.has('yesterday-retest'),
+  }
+}
+
 function buildTodayTasks(ctx: TodayTaskContext): TodayTask[] {
   const { phase, dueCount, wrongCount, doneIds } = ctx
 
@@ -14,6 +26,7 @@ function buildTodayTasks(ctx: TodayTaskContext): TodayTask[] {
         route: '/train/vocab',
         done: doneIds.has('final-vocab'),
       },
+      yesterdayRetestTask(ctx),
       {
         id: 'final-wrong',
         title: '错词本清扫',
@@ -42,6 +55,7 @@ function buildTodayTasks(ctx: TodayTaskContext): TodayTask[] {
       route: '/train/vocab',
       done: doneIds.has('vocab'),
     },
+    yesterdayRetestTask(ctx),
     {
       id: 'writing',
       title: phase === 'sprint' ? '冲刺：套模板成文' : '套模板练习',
@@ -76,7 +90,7 @@ export const englishManifest: DomainManifest = {
     { id: 'writing', label: '写作', route: '/writing', icon: 'write' },
   ],
   homeShortcuts: [
-    { label: '单词', desc: '背词 · 词典 · 错词本', route: '/vocab' },
+    { label: '单词', desc: '背词 · 词典 · 错词本 · 复测本', route: '/vocab' },
     { label: '写作', desc: '模板 · 金句 · 套用', route: '/writing' },
   ],
   homePhaseText: (phase) => {

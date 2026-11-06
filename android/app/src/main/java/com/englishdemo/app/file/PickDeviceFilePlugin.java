@@ -29,8 +29,8 @@ import java.util.Locale;
 /**
  * 原生选文件：
  * - local：系统文档选择器
- * - wechat：拉起微信，由用户在聊天记录里打开文件 →「用其他应用打开」→ 本应用
- *   （第三方 App 无法调用小程序的 chooseMessageFile；这是拿聊天文件的可靠方式）
+ * - wechat：优先拉起微信的 GET_CONTENT（聊天/收藏等文件选择页）；失败再退回系统选择器
+ * - 另支持微信「用其他应用打开」经 VIEW/SEND 传入（冷启动或后台传入）
  */
 @CapacitorPlugin(name = "PickDeviceFile")
 public class PickDeviceFilePlugin extends Plugin {
@@ -41,7 +41,6 @@ public class PickDeviceFilePlugin extends Plugin {
   private static PickDeviceFilePlugin instance;
 
   private PluginCall pendingWeChatPick;
-  private boolean expectingWeChatFile;
   private JSObject pendingIncomingFile;
 
   @Override
@@ -60,22 +59,31 @@ public class PickDeviceFilePlugin extends Plugin {
     String mimeType = call.getString("mimeType", "*/*");
     if (mimeType == null || mimeType.isBlank()) mimeType = "*/*";
 
-    if ("wechat".equalsIgnoreCase(source)) {
-      startWeChatChatPick(call);
-      return;
-    }
+    boolean wechat = "wechat".equalsIgnoreCase(source);
+    Intent intent = wechat ? buildWeChatIntent(mimeType, multiple) : buildLocalIntent(mimeType, multiple);
 
-    Intent intent = buildLocalIntent(mimeType, multiple);
     try {
       startActivityForResult(call, intent, "onPickResult");
     } catch (ActivityNotFoundException e) {
+      if (wechat) {
+        // 微信未安装或不支持 GET_CONTENT：退回系统选择器（侧栏常含「微信」/下载）
+        try {
+          Intent fallback =
+              Intent.createChooser(buildLocalIntent(mimeType, multiple), "从微信或文件中选择");
+          startActivityForResult(call, fallback, "onPickResult");
+          return;
+        } catch (Exception ignored) {
+          call.reject("未安装微信，或无法打开文件选择。请改用「手机本地文件」，或先在微信里把文件另存到手机后再选。");
+          return;
+        }
+      }
       call.reject("无法打开系统文件选择器");
     } catch (Exception e) {
       call.reject(e.getMessage() != null ? e.getMessage() : "打开文件选择器失败");
     }
   }
 
-  /** 取消正在等待的「微信聊天文件」选取 */
+  /** 取消正在等待的「微信用其他应用打开」选取 */
   @PluginMethod
   public void cancelPick(PluginCall call) {
     finishWeChatPickCanceled();
@@ -96,34 +104,22 @@ public class PickDeviceFilePlugin extends Plugin {
     call.resolve(ret);
   }
 
-  private void startWeChatChatPick(PluginCall call) {
-    Intent launch = getContext().getPackageManager().getLaunchIntentForPackage(WECHAT_PKG);
-    if (launch == null) {
-      call.reject("未安装微信。请安装微信后，在聊天记录中打开文件并选择「用其他应用打开」。");
-      return;
-    }
-    if (pendingWeChatPick != null) {
-      finishWeChatPickCanceled();
-    }
-    call.setKeepAlive(true);
-    pendingWeChatPick = call;
-    expectingWeChatFile = true;
-    try {
-      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      getContext().startActivity(launch);
-    } catch (Exception e) {
-      pendingWeChatPick = null;
-      expectingWeChatFile = false;
-      call.reject("无法打开微信：" + (e.getMessage() != null ? e.getMessage() : "未知错误"));
-    }
-  }
-
   private Intent buildLocalIntent(String mimeType, boolean multiple) {
     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
     intent.addCategory(Intent.CATEGORY_OPENABLE);
     intent.setType(mimeType);
     intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multiple);
     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    return intent;
+  }
+
+  /** 指定微信包名，尽量直接进入微信内的文件选择页（聊天/收藏等） */
+  private Intent buildWeChatIntent(String mimeType, boolean multiple) {
+    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType(mimeType);
+    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multiple);
+    intent.setPackage(WECHAT_PKG);
     return intent;
   }
 
@@ -151,7 +147,6 @@ public class PickDeviceFilePlugin extends Plugin {
       PluginCall call = pendingWeChatPick;
       if (call != null) {
         pendingWeChatPick = null;
-        expectingWeChatFile = false;
         call.reject(e.getMessage() != null ? e.getMessage() : "读取微信文件失败");
       }
     }
@@ -161,7 +156,6 @@ public class PickDeviceFilePlugin extends Plugin {
     PluginCall call = pendingWeChatPick;
     if (call != null) {
       pendingWeChatPick = null;
-      expectingWeChatFile = false;
       JSArray files = new JSArray();
       files.put(file);
       JSObject ret = new JSObject();
@@ -173,14 +167,12 @@ public class PickDeviceFilePlugin extends Plugin {
 
     // 非 pick 流程（例如直接从微信冷启动打开）：缓存并通知前端
     pendingIncomingFile = file;
-    expectingWeChatFile = false;
     JSObject event = new JSObject();
     event.put("file", file);
     notifyListeners("incomingFile", event);
   }
 
   private void finishWeChatPickCanceled() {
-    expectingWeChatFile = false;
     PluginCall call = pendingWeChatPick;
     pendingWeChatPick = null;
     if (call == null) return;
