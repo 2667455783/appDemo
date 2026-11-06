@@ -22,6 +22,16 @@ mvn spring-boot:run
 #   systemctl restart appdemo-backend
 ```
 
+Windows PowerShell 若提示找不到 `mvn`，用仓库自带 Wrapper（同样是默认 `dev`，继续读 `.env.dev`）：
+
+```powershell
+cd backend
+.\mvnw.cmd spring-boot:run
+# 或：.\start-dev.ps1
+```
+
+前端另开窗口，在仓库根目录执行 `npm run dev`（端口 8000，代理到 8080）。不要加 `-Dspring-boot.run.profiles=local`，否则会改用内存 H2 且不读 `.env.dev` 里的 SiliconFlow 配置。若 8080 仍被旧进程占用，先在原来的后端窗口 Ctrl+C。
+
 无 MySQL 时可用内存 H2 冒烟：
 
 ```bash
