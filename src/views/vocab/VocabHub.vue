@@ -69,7 +69,7 @@ const dictationCount = computed(() => study.dictationWordIds.length)
     <button class="card task" type="button" @click="router.push('/vocab/retest')">
       <div>
         <p class="t-title">复测本</p>
-        <p class="page-sub">已记住的词 · 四选一巩固</p>
+        <p class="page-sub">全部已记住的词 · 四选一巩固</p>
       </div>
       <span class="tag" :class="retestCount ? 'ink' : 'green'">{{ retestCount ? `${retestCount} 词` : '清空' }}</span>
     </button>

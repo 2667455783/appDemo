@@ -17,6 +17,7 @@ import type {
   VocabCardState,
   VocabWord,
 } from '@/types'
+import { rememberedWordIds } from '@/services/vocabRemembered'
 import { newCard, reviewCard } from '@/utils/srs'
 import { addDays, loadState, saveState, todayISO, uid } from '@/utils/storage'
 
@@ -253,12 +254,7 @@ export const useStudyStore = defineStore('study', () => {
       .map(([id]) => id),
   )
 
-  const retestWordIds = computed(() =>
-    Object.entries(vocab.value)
-      .filter(([, c]) => !!c.pendingRetestOn)
-      .sort((a, b) => (b[1].pendingRetestOn || '').localeCompare(a[1].pendingRetestOn || ''))
-      .map(([id]) => id),
-  )
+  const retestWordIds = computed(() => rememberedWordIds(vocab.value))
 
   const yesterdayRetestWordIds = computed(() => {
     const yesterday = addDays(todayISO(), -1)
@@ -326,7 +322,7 @@ export const useStudyStore = defineStore('study', () => {
     flush()
   }
 
-  /** 复测本四选一：对则出队；错则打回学习态并仍待测 */
+  /** 复测四选一：对则保持已记住（仍在复测本），并清昨日巩固入队日；错则回到学习态 */
   function answerRetest(id: string, ok: boolean) {
     const current = ensureCard(id)
     if (ok) {

@@ -28,18 +28,18 @@ function cardOf(id: string) {
 
 <template>
   <div class="page full">
-    <PageHeader title="复测本" subtle="背词点「记住了」的词会进入这里，用四选一巩固" @back="router.back()" />
+    <PageHeader title="复测本" subtle="存放所有已记住的单词，用四选一巩固" @back="router.back()" />
 
     <div v-if="loading" class="card"><p>加载中…</p></div>
     <div v-else-if="!words.length" class="card">
-      <p>复测本是空的。</p>
-      <p class="page-sub">在「开始背词」里点「记住了」，词会自动加入；次日可在首页「昨日巩固」复测。</p>
+      <p>还没有已记住的单词。</p>
+      <p class="page-sub">在「开始背词」里点「记住了」后会出现在这里。答对复测不会移出，点「没记住」才会离开。</p>
       <button class="btn primary block" style="margin-top: 12px" type="button" @click="router.replace('/train/vocab')">
         去背词
       </button>
     </div>
     <template v-else>
-      <p class="muted">共 {{ words.length }} 词 · 四选一验证释义</p>
+      <p class="muted">共 {{ words.length }} 个已记住的词 · 四选一验证释义</p>
       <article v-for="w in words" :key="w.id" class="card word-card">
         <div class="row space">
           <div>
@@ -50,7 +50,7 @@ function cardOf(id: string) {
         </div>
         <p style="margin-top: 8px">{{ w.meaning }}</p>
         <p class="muted" style="margin-top: 8px">
-          入队 {{ cardOf(w.id)?.pendingRetestOn || '—' }} · 对 {{ cardOf(w.id)?.correct ?? 0 }} 次
+          已记住 · 对 {{ cardOf(w.id)?.correct ?? 0 }} 次
         </p>
       </article>
       <button class="btn primary block" type="button" @click="router.push('/train/vocab-retest')">

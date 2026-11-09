@@ -94,7 +94,8 @@ const canDictation = computed(
       </template>
       <template v-else>
         <p>本组结束。对 {{ right }} · 错 {{ wrong }}。</p>
-        <p class="page-sub">答对的词会移出复测本；答错的仍待测并会尽快再出现。</p>
+        <p v-if="scopeYesterday" class="page-sub">答对的词会记入今日默写；答错的明天还会到期。</p>
+        <p v-else class="page-sub">答对仍留在复测本（已记住）；答错会离开复测本并进入错词本。</p>
       </template>
       <div v-if="canDictation" class="end-actions">
         <button class="btn primary block" type="button" @click="router.replace('/train/vocab-dictation')">
