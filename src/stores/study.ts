@@ -17,7 +17,7 @@ import type {
   VocabCardState,
   VocabWord,
 } from '@/types'
-import { rememberedWordIds } from '@/services/vocabRemembered'
+import { rememberedWordIds, unrememberedWordIds } from '@/services/vocabRemembered'
 import { newCard, reviewCard } from '@/utils/srs'
 import { addDays, loadState, saveState, todayISO, uid } from '@/utils/storage'
 
@@ -247,12 +247,7 @@ export const useStudyStore = defineStore('study', () => {
     })
   })
 
-  const wrongWordIds = computed(() =>
-    Object.entries(vocab.value)
-      .filter(([, c]) => (c.wrong ?? 0) > 0)
-      .sort((a, b) => (b[1].wrong ?? 0) - (a[1].wrong ?? 0))
-      .map(([id]) => id),
-  )
+  const wrongWordIds = computed(() => unrememberedWordIds(vocab.value))
 
   const retestWordIds = computed(() => rememberedWordIds(vocab.value))
 
