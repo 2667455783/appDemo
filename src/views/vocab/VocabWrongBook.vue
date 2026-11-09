@@ -28,18 +28,18 @@ function cardOf(id: string) {
 
 <template>
   <div class="page full">
-    <PageHeader title="错词本" subtle="答错过的词会集中在这里" @back="router.back()" />
+    <PageHeader title="错词本" subtle="存放所有未记住的单词，优先复习" @back="router.back()" />
 
     <div v-if="loading" class="card"><p>加载中…</p></div>
     <div v-else-if="!words.length" class="card">
-      <p>错词本是空的。</p>
-      <p class="page-sub">背词时点「没记住」，会自动加入。</p>
+      <p>还没有未记住的单词。</p>
+      <p class="page-sub">在「开始背词」里点「没记住」后会出现在这里。点「记住了」会离开并进入复测本。</p>
       <button class="btn primary block" style="margin-top: 12px" type="button" @click="router.replace('/train/vocab')">
         去背词
       </button>
     </div>
     <template v-else>
-      <p class="muted">共 {{ words.length }} 词 · 建议优先复习</p>
+      <p class="muted">共 {{ words.length }} 个未记住的词 · 建议优先复习</p>
       <article v-for="w in words" :key="w.id" class="card word-card">
         <div class="row space">
           <div>
@@ -51,7 +51,7 @@ function cardOf(id: string) {
         <p style="margin-top: 8px">{{ w.meaning }}</p>
         <p v-if="w.example" class="page-sub" style="margin-top: 6px">{{ w.example }}</p>
         <p class="muted" style="margin-top: 8px">
-          错 {{ cardOf(w.id)?.wrong ?? 0 }} 次 · 对 {{ cardOf(w.id)?.correct ?? 0 }} 次
+          未记住 · 错 {{ cardOf(w.id)?.wrong ?? 0 }} 次 · 对 {{ cardOf(w.id)?.correct ?? 0 }} 次
         </p>
       </article>
       <button class="btn primary block" type="button" @click="router.push('/train/vocab')">去复习一组</button>

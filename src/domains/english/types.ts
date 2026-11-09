@@ -57,7 +57,7 @@ export type VocabCardState = {
   correct: number
   wrong: number
   status: 'new' | 'learning' | 'review'
-  /** 复测本入队日 YYYY-MM-DD；空/缺省表示不在复测本 */
+  /** 昨日巩固入队日 YYYY-MM-DD；空/缺省表示不在「昨日巩固」。复测本成员看 status === 'review' */
   pendingRetestOn?: string
 }
 
